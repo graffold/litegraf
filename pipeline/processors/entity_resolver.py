@@ -21,8 +21,8 @@ import time
 from collections import defaultdict
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.processors.ontology_filter import OntologyFilter
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()
@@ -1158,31 +1158,18 @@ class EntityResolver:
         # Step 1: Map proteins to UniProt IDs (critical prerequisite for consolidation)
         logger.info("Step 1: Mapping proteins to UniProt IDs...")
         try:
-            from src.utils.map_proteins_to_uniprot import (
-                ProteinUniProtMapper,
+            from src.utils.enhanced_uniprot_mapper import EnhancedUniProtMapper
+
+            mapper = EnhancedUniProtMapper(
+                database=self.db.database if self.db else None
             )
-
-            mapper = ProteinUniProtMapper()
             if dry_run:
-                logger.info(
-                    "Would map proteins to UniProt IDs (dry run - no changes made)"
-                )
-                uniprot_stats = {"mapped_proteins": 0, "dry_run": True}
+                uniprot_stats = mapper.run_mapping(dry_run=True)
             else:
-                mapper.run_mapping()
-                # Get mapping statistics by querying the database
-                count_query = """
-                MATCH (p:Protein)
-                WHERE p.uniprotID IS NOT NULL
-                RETURN count(p) as mapped_count
-                """
-
-                count_result = self._execute_query(count_query)
-                mapped_count = count_result[0]["mapped_count"] if count_result else 0
-                uniprot_stats = {"mapped_proteins": mapped_count, "dry_run": False}
+                uniprot_stats = mapper.run_mapping(dry_run=False)
 
             all_stats["uniprot_mapping"] = uniprot_stats
-            logger.info(f"UniProt mapping completed: {uniprot_stats}")
+            logger.info(f"Enhanced UniProt mapping completed: {uniprot_stats}")
 
         except Exception as e:
             logger.error(f"UniProt mapping failed: {e}")

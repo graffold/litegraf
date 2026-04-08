@@ -82,11 +82,18 @@ class OntologyFilter:
         self.disease_ontology = {}
         self.protein_ontology = {}
         self.mondo_path = mondo_path or os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "utils", "mondo.obo")
+            os.path.join(
+                os.path.dirname(__file__), "..", "..", "src", "utils", "mondo.obo"
+            )
         )
         self.protein_ontology_path = protein_ontology_path or os.path.abspath(
             os.path.join(
-                os.path.dirname(__file__), "..", "utils", "uniprot_ids_human.csv"
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "src",
+                "utils",
+                "uniprot_ids_human.csv",
             )
         )
         self.backend_adapter = None  # Backend adapter for query execution
