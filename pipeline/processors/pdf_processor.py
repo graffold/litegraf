@@ -349,7 +349,7 @@ class PDFProcessor:
             response = await asyncio.to_thread(
                 self.vision._invoke_vision_model, prompt, image_b64
             )
-            return response
+            return response  # noqa: RET504
         except TimeoutError:
             raise
         except Exception as exc:
