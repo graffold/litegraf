@@ -40,10 +40,7 @@ class VisionProcessor:
             temperature: Sampling temperature
             max_tokens: Maximum response tokens
         """
-        self.vision_model_id = (
-            vision_model_id
-            or Config.get_config("VISION_MODEL_ID")
-        )
+        self.vision_model_id = vision_model_id or Config.get_config("VISION_MODEL_ID")
         self.region_name = (
             region_name
             or Config.get_config("VISION_MODEL_REGION")

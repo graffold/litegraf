@@ -19,7 +19,12 @@ class IncrementalConsolidator:
     Balances performance with data quality.
     """
 
-    def __init__(self, db: Neo4jDatabase | None = None, chunk_threshold: int = 50, skip_full_resolution: bool = False):
+    def __init__(
+        self,
+        db: Neo4jDatabase | None = None,
+        chunk_threshold: int = 50,
+        skip_full_resolution: bool = False,
+    ):
         """
         Initialize incremental consolidator.
 

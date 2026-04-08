@@ -47,7 +47,11 @@ class CSVExtractionStrategy(ExtractionStrategy):
                 text=df.to_csv(index=False),
                 method=self.name,
                 execution_time=time.time() - start,
-                metadata={**(source.metadata or {}), "rows": len(df), "columns": list(df.columns)},
+                metadata={
+                    **(source.metadata or {}),
+                    "rows": len(df),
+                    "columns": list(df.columns),
+                },
             )
         except Exception as e:
             return ExtractionResult(
@@ -70,6 +74,7 @@ class ExcelExtractionStrategy(ExtractionStrategy):
     def is_available(self) -> bool:
         try:
             import openpyxl  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -96,7 +101,11 @@ class ExcelExtractionStrategy(ExtractionStrategy):
                 text=df.to_csv(index=False),
                 method=self.name,
                 execution_time=time.time() - start,
-                metadata={**(source.metadata or {}), "rows": len(df), "columns": list(df.columns)},
+                metadata={
+                    **(source.metadata or {}),
+                    "rows": len(df),
+                    "columns": list(df.columns),
+                },
             )
         except Exception as e:
             return ExtractionResult(

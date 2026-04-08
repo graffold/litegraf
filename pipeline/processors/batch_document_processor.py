@@ -88,10 +88,7 @@ class BatchDocumentProcessor:
         self.multimodal_processor = MultimodalProcessor()
 
         if enable_vision:
-            vision_model = (
-                vision_model_id
-                or Config.get_config("VISION_MODEL_ID")
-            )
+            vision_model = vision_model_id or Config.get_config("VISION_MODEL_ID")
             self.vision_processor = VisionProcessor(vision_model_id=vision_model)
         else:
             self.vision_processor = None
