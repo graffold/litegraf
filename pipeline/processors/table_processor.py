@@ -8,8 +8,8 @@ import json
 from typing import Any
 
 from pipeline.enrichment.column_analyzer import ColumnAnalyzer
-from src.factories.llm_factory import get_llm
 from pipeline.processors.multimodal_processor import ExtractedTable, MultimodalDocument
+from src.factories.llm_factory import get_llm
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

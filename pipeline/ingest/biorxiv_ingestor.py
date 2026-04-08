@@ -11,7 +11,6 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.ingest.biorxiv_deduplicator import BioRxivDeduplicator
 from pipeline.ingest.biorxiv_fetcher import BioRxivFetcher, BioRxivPaperMetadata
 from pipeline.ingest.content_extractor import ContentExtractor
@@ -20,6 +19,7 @@ from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.ingest.kg_pipeline import KGPipeline
 from pipeline.ingest.section_parser import PaperSection, SectionParser
 from pipeline.processors.relationship_counter import RelationshipCounter
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 from src.utils.map_proteins_to_uniprot import ProteinUniProtMapper
 

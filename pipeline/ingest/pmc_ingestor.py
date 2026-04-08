@@ -11,12 +11,12 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.ingest.embedding_pipeline import EmbeddingPipeline
 from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.ingest.kg_pipeline import KGPipeline
 from pipeline.ingest.pmc_fetcher import PMCArticle, PMCFetcher
 from pipeline.processors.relationship_counter import RelationshipCounter
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 from src.utils.map_proteins_to_uniprot import ProteinUniProtMapper
 

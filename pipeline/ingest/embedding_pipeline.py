@@ -2,10 +2,10 @@ import time
 
 from neo4j_graphrag.retrievers import Text2CypherRetriever, VectorRetriever
 
+from pipeline.ingest.ingestor import ProcessedDocument
 from src.core.database import Neo4jDatabase
 from src.factories.embedding_factory import get_embedder
 from src.factories.llm_factory import get_llm
-from pipeline.ingest.ingestor import ProcessedDocument
 from src.utils import logging_utils
 
 # Import disease hierarchy enricher

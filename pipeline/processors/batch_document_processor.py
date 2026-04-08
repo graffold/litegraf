@@ -13,11 +13,11 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from src.config import Config
 from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.processors.multimodal_processor import MultimodalProcessor
 from pipeline.processors.table_processor import TableProcessor
 from pipeline.processors.vision_processor import VisionProcessor
+from src.config import Config
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

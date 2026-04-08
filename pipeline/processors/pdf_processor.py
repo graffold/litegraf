@@ -12,7 +12,6 @@ from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from src.factories.llm_factory import get_llm
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

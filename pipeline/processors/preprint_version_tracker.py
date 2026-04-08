@@ -3,8 +3,8 @@
 import logging
 from datetime import datetime
 
-from src.core.database import Neo4jDatabase
 from pipeline.ingest.preprint_fetcher import PreprintMetadata
+from src.core.database import Neo4jDatabase
 
 logger = logging.getLogger(__name__)
 

@@ -15,8 +15,8 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

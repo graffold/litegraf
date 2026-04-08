@@ -1,7 +1,7 @@
 from typing import Any
 
-from src.factories.llm_factory import get_llm
 from pipeline.processors.biological_enrichment_framework import EnrichmentProcessor
+from src.factories.llm_factory import get_llm
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

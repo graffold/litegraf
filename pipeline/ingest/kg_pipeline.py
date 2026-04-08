@@ -10,6 +10,17 @@ from Bio import Entrez
 from langgraph.graph import END, START, StateGraph
 from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 
+from pipeline.ingest.ingestor import Chunk, ProcessedDocument
+from pipeline.ingest.ontology_pipeline import Neo4jBackendAdapter, OntologyPipeline
+from pipeline.ingest.sentence_locator import annotate_relationships
+from pipeline.ingest.token_chunker import TokenChunker
+from pipeline.processors.entity_resolver import EntityResolver
+from pipeline.processors.incremental_consolidation import IncrementalConsolidator
+from pipeline.processors.ingestion_run_report import (
+    ChunkObservation,
+    IngestionRunReport,
+)
+from pipeline.processors.relationship_counter import RelationshipCounter
 from src.cache import ingestion_subgraph_cache
 from src.cache.redis_cache import get_redis_cache
 from src.config import Config
@@ -20,14 +31,6 @@ from src.core.context_graph_interfaces import ProvenanceFactory as ProvenanceFac
 from src.core.database import Neo4jDatabase
 from src.factories.embedding_factory import get_embedder
 from src.factories.llm_factory import get_llm
-from pipeline.ingest.ingestor import Chunk, ProcessedDocument
-from pipeline.ingest.ontology_pipeline import Neo4jBackendAdapter, OntologyPipeline
-from pipeline.ingest.sentence_locator import annotate_relationships
-from pipeline.ingest.token_chunker import TokenChunker
-from pipeline.processors.entity_resolver import EntityResolver
-from pipeline.processors.incremental_consolidation import IncrementalConsolidator
-from pipeline.processors.ingestion_run_report import ChunkObservation, IngestionRunReport
-from pipeline.processors.relationship_counter import RelationshipCounter
 from src.utils import logging_utils
 from src.utils.database_config import DatabaseConfig
 from src.utils.unified_retry_utils import UnifiedRetryUtilities

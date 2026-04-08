@@ -6,12 +6,12 @@ Extracts and links customer study results from PDF corpus to proteins and diseas
 from pathlib import Path
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.processors.batch_document_processor import (
     BatchDocumentProcessor,
     ProcessingState,
 )
 from pipeline.processors.multimodal_processor import MultimodalProcessor
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

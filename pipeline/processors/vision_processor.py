@@ -8,9 +8,11 @@ import base64
 import json
 from typing import Any
 
+from pipeline.processors.multimodal_processor import (
+    MultimodalDocument,
+    MultimodalProcessor,
+)
 from src.config import Config
-from pipeline.processors.multimodal_processor import (MultimodalDocument,
-                                                 MultimodalProcessor)
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

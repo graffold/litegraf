@@ -9,9 +9,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from pipeline.processors.ppi_csv_processor import PPICSVProcessor
 from src.core.multisource_ppi_database import MultiSourcePPIDatabaseInterface
 from src.models.ppi_models import PPIBatchData
-from pipeline.processors.ppi_csv_processor import PPICSVProcessor
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()

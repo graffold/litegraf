@@ -6,8 +6,8 @@ Incremental consolidation strategy for running entity resolution during database
 import time
 from typing import Any
 
-from src.core.database import Neo4jDatabase
 from pipeline.processors.entity_resolver import EntityResolver
+from src.core.database import Neo4jDatabase
 from src.utils.logging_utils import setup_logging
 
 logger = setup_logging()
