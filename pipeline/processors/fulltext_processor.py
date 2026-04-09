@@ -45,7 +45,7 @@ class FullTextProcessor:
         email: str | None = None,
         api_key: str | None = None,
         rate_limit_delay: float = 0.34,
-        checkpoint_db_path: str = "./checkpoints/fulltext_processing.db",
+        checkpoint_db_path: str = "./data/checkpoints/fulltext_processing.db",
         max_workers: int = 3,
     ):
         """

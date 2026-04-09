@@ -135,7 +135,7 @@ class PubMedMassScraper:
     def __init__(
         self,
         database: DatabaseInterface,
-        checkpoint_dir: str = "pubmed_checkpoints",
+        checkpoint_dir: str = "data/checkpoints",
         batch_size: int = 500,
         max_concurrent_batches: int = 3,
         rate_limit_delay: float = 0.5,
