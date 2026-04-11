@@ -13,6 +13,9 @@ dependencies = [
     "ollama>=0.4.8",
     "aiohttp>=3.9.0",
     "orjson>=3.9.0",
+    "neo4j-graphrag>=1.13.0",
+    "langgraph>=0.4.0",
+    "httpx>=0.27.0",
 ]
 
 [project.optional-dependencies]
@@ -44,4 +47,5 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "integration: integration tests requiring live services",
+    "properties: property-based tests using hypothesis",
 ]
