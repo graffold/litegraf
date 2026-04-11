@@ -6,17 +6,14 @@ detection, and write community assignments back to the graph database.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
 import community as community_louvain
 import networkx as nx
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class Community:
     """A detected community of related entities."""

@@ -4,16 +4,13 @@ Performs iterative LLM passes over text to capture entities missed in the first 
 Each subsequent pass prompts the LLM with already-found entities and asks for missed ones.
 """
 
+import logging
 import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.config import Config
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+from pipeline.config import PipelineConfig as Config
+logger = logging.getLogger(__name__)
 @dataclass
 class GleaningResult:
     """Result of a multi-pass gleaning extraction."""

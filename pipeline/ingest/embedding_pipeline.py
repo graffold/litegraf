@@ -1,13 +1,10 @@
+import logging
 import time
 
 from neo4j_graphrag.retrievers import Text2CypherRetriever, VectorRetriever
 
 from pipeline.ingest.ingestor import ProcessedDocument
-from src.core.database import Neo4jDatabase
-from src.factories.embedding_factory import get_embedder
-from src.factories.llm_factory import get_llm
-from src.utils import logging_utils
-
+from pipeline.interfaces import EmbeddingProvider, GraphStore, LLMProvider
 # Import disease hierarchy enricher
 try:
     from pipeline.processors.disease_hierarchy_enricher import DiseaseHierarchyEnricher
@@ -17,38 +14,51 @@ except ImportError:
     DiseaseHierarchyEnricher = type(None)  # type: ignore
     HAS_HIERARCHY_ENRICHER = False
 
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class EmbeddingPipeline:
     def __init__(
         self,
-        service: str = "local",
+        graph_store: GraphStore,
+        embedding_provider: EmbeddingProvider,
+        llm_provider: LLMProvider,
+        *,
         database: str = "neo4j",
         store_embedding_properties: bool = False,
         optimize_text_storage: bool = True,
-        **kwargs,
     ):
         """
         Initialize the embedding pipeline.
 
         Args:
-            service: LLM/embedding service type ("local", "sagemaker") - OpenAI/HF Hub removed
+            graph_store: GraphStore backend for graph database operations
+            embedding_provider: EmbeddingProvider backend for text embeddings
+            llm_provider: LLMProvider backend for LLM operations
             database: Database name
             store_embedding_properties: Whether to store embeddings as node properties (default False for efficiency)
             optimize_text_storage: Whether to avoid storing redundant abstract_text when contained in full_text (default True)
-            **kwargs: Additional arguments for LLM/embedder configuration
         """
-        self.db = Neo4jDatabase(database=database)
-        logger.info("Using Neo4j database connection")
+        # --- Type validation for injected backends ---
+        if not isinstance(graph_store, GraphStore):
+            raise TypeError(
+                f"graph_store must be a GraphStore instance, got {type(graph_store).__name__}"
+            )
+        if not isinstance(embedding_provider, EmbeddingProvider):
+            raise TypeError(
+                f"embedding_provider must be an EmbeddingProvider instance, got {type(embedding_provider).__name__}"
+            )
+        if not isinstance(llm_provider, LLMProvider):
+            raise TypeError(
+                f"llm_provider must be an LLMProvider instance, got {type(llm_provider).__name__}"
+            )
+
+        self.db = graph_store
+        self.embedder = embedding_provider
+        self.llm = llm_provider
 
         self.database = database
         self.store_embedding_properties = store_embedding_properties
         self.optimize_text_storage = optimize_text_storage
-        logger.info(f"Initializing EmbeddingPipeline with service={service}")
-
-        embed_kwargs = {}
-        llm_kwargs = dict(kwargs.items())
+        logger.info("Initializing EmbeddingPipeline with injected backends")
 
         # Initialize disease hierarchy enricher
         self.hierarchy_enricher = None
@@ -61,26 +71,6 @@ class EmbeddingPipeline:
             except Exception as e:
                 logger.warning(f"Could not initialize disease hierarchy enricher: {e}")
 
-        # Service configuration - removed OpenAI and HuggingFace Hub dependencies
-        if service == "sagemaker":
-            embed_type = "huggingface"
-            embed_kwargs["model_name"] = "all-mpnet-base-v2"  # 768 dimensions
-        elif service == "sagemaker-llama3":
-            embed_type = "sagemaker"
-            # No model_name needed for SageMaker - uses endpoint configuration
-        else:
-            # Default to local huggingface models (no API key required)
-            embed_type = "huggingface"
-            embed_kwargs["model_name"] = "all-mpnet-base-v2"  # 768 dimensions
-
-        # Log deprecation warning for removed services
-        if service in ["openai", "hf-inference"]:
-            logger.warning(
-                f"Service '{service}' no longer supported (dependencies removed). Using local HuggingFace models."
-            )
-
-        self.embedder = get_embedder(embed_type, use_binary=False, **embed_kwargs)
-        self.llm = get_llm(service, **llm_kwargs)
         self.vector_retriever = None
         self.text2cypher_retriever = None
 
@@ -88,32 +78,96 @@ class EmbeddingPipeline:
         # Defer retriever initialization — only needed for querying, not embedding generation
         self._retrievers_initialized = False
 
+    def _get_driver(self):
+        """Get the underlying Neo4j driver from the graph store, if available.
+
+        Returns the driver attribute from the graph store backend, or None
+        if the backend doesn't expose a driver (e.g., non-Neo4j backends).
+        """
+        return getattr(self.db, "driver", None)
+
+    def _get_driver_session(self):
+        """Get a Neo4j session from the graph store's driver.
+
+        Returns a context-manager session, or raises RuntimeError if the
+        backend doesn't expose a driver.
+        """
+        driver = self._get_driver()
+        if driver is None:
+            raise RuntimeError(
+                "Graph store backend does not expose a 'driver' attribute. "
+                "Neo4j-specific operations require a Neo4j-compatible backend."
+            )
+        return driver.session(database=self.database)
+
     def _create_indexes(self):
         """Create vector and full-text indexes using neo4j_graphrag standards."""
-        from src.utils.neo4j_index_manager import setup_graphrag_indexes
+        driver = self._get_driver()
+        if driver is None:
+            logger.warning(
+                "Graph store backend does not expose a 'driver' attribute. "
+                "Skipping Neo4j-specific index creation."
+            )
+            return
 
         try:
-            success = setup_graphrag_indexes(
-                driver=self.db.driver,
-                database=self.database,
-                dimensions=768,
-                await_online=True,
-            )
+            from neo4j_graphrag.indexes import create_vector_index, create_fulltext_index
+        except ImportError:
+            create_vector_index = None
+            create_fulltext_index = None
 
-            if success:
-                logger.info(
-                    "✓ All indexes created successfully using neo4j_graphrag standards"
+        def _setup_graphrag_indexes(driver, database, dimensions=768, await_online=True):
+            """Set up neo4j-graphrag vector and fulltext indexes."""
+            if create_vector_index is None:
+                return False
+            try:
+                create_vector_index(
+                    driver,
+                    name="node_embeddings",
+                    label="Entity",
+                    embedding_property="embedding",
+                    dimensions=dimensions,
+                    similarity_fn="cosine",
                 )
-                return
-            logger.warning("⚠ Some indexes failed, trying manual fallback...")
-        except Exception as e:
-            logger.error(
-                f"neo4j_graphrag index creation failed: {e}, using manual fallback"
+                create_vector_index(
+                    driver,
+                    name="chunk_embeddings",
+                    label="Chunk",
+                    embedding_property="embedding",
+                    dimensions=dimensions,
+                    similarity_fn="cosine",
+                )
+                create_fulltext_index(
+                    driver,
+                    name="node_fulltext",
+                    label="Entity",
+                    node_properties=["name", "full_text", "abstract_text"],
+                )
+                if await_online:
+                    with driver.session(database=database) as session:
+                        session.run("CALL db.awaitIndexes(300)")
+                return True
+            except Exception as e:
+                logger.warning(f"graphrag index setup failed: {e}")
+                return False
+
+        success = _setup_graphrag_indexes(
+            driver=driver,
+            database=self.database,
+            dimensions=768,
+            await_online=True,
+        )
+
+        if success:
+            logger.info(
+                "✓ All indexes created successfully using neo4j_graphrag standards"
             )
+            return
+        logger.warning("⚠ Some indexes failed, trying manual fallback...")
 
         # Fallback to manual creation if neo4j_graphrag fails
         try:
-            with self.db.driver.session(database=self.database) as session:
+            with driver.session(database=self.database) as session:
                 index_exists = session.run(
                     "SHOW INDEXES WHERE name = 'node_embeddings'"
                 ).single()
@@ -156,7 +210,7 @@ class EmbeddingPipeline:
         if self._retrievers_initialized:
             return
         try:
-            with self.db.driver.session(database=self.database) as session:
+            with self._get_driver_session() as session:
                 index_exists = session.run(
                     "SHOW INDEXES WHERE name = 'node_embeddings'"
                 ).single()
@@ -169,11 +223,12 @@ class EmbeddingPipeline:
                     raise Exception("chunk_embeddings index not found after creation")
 
             logger.info("Initializing neo4j-graphrag retrievers")
+            driver = self._get_driver()
             self.vector_retriever = VectorRetriever(
-                self.db.driver, "node_embeddings", embedder=self.embedder
+                driver, "node_embeddings", embedder=self.embedder
             )
             self.text2cypher_retriever = Text2CypherRetriever(
-                driver=self.db.driver, llm=self.llm
+                driver=driver, llm=self.llm
             )
             logger.info("neo4j-graphrag retrievers initialized successfully")
 
@@ -189,7 +244,7 @@ class EmbeddingPipeline:
         This optimizes storage while maintaining vector search functionality.
         """
         try:
-            with self.db.driver.session(database=self.database) as session:
+            with self._get_driver_session() as session:
                 # Check current storage usage
                 stats_query = """
                 MATCH (n)
@@ -260,7 +315,7 @@ class EmbeddingPipeline:
     def _get_nodes_without_embeddings(self, label: str) -> list[dict]:
         """Fetch nodes of given label without embeddings."""
         try:
-            with self.db.driver.session(database=self.database) as session:
+            with self._get_driver_session() as session:
                 total_count = session.run(
                     f"MATCH (n:{label}) RETURN count(n) AS count"
                 ).single()["count"]
@@ -349,7 +404,7 @@ class EmbeddingPipeline:
 
                 try:
                     embeddings = self.embedder.embed_documents(node_texts)
-                    with self.db.driver.session(database=self.database) as session:
+                    with self._get_driver_session() as session:
                         for node, embedding, node_text in zip(
                             batch, embeddings, node_texts, strict=False
                         ):
@@ -390,7 +445,7 @@ class EmbeddingPipeline:
                     continue
 
             # Verification section
-            with self.db.driver.session(database=self.database) as session:
+            with self._get_driver_session() as session:
                 protein_count = session.run(
                     "MATCH (n:Protein) WHERE n.embedding IS NOT NULL RETURN count(n) AS count"
                 ).single()["count"]
@@ -443,7 +498,7 @@ class EmbeddingPipeline:
                         continue
                     chunk_embedding = self.embedder.embed_documents([chunk.text])[0]
                     chunk.embedding = chunk_embedding
-                    with self.db.driver.session(database=self.database) as session:
+                    with self._get_driver_session() as session:
                         # Extract PMID from doc_id (format: "pubmed_12345")
                         pmid = (
                             doc.doc_id.replace("pubmed_", "")
@@ -494,7 +549,7 @@ class EmbeddingPipeline:
                         else:
                             abstract_text_to_store = chunk.text
 
-                        with self.db.driver.session(database=self.database) as session:
+                        with self._get_driver_session() as session:
                             if self.store_embedding_properties:
                                 if abstract_text_to_store is not None:
                                     result = session.run(
@@ -626,9 +681,7 @@ class EmbeddingPipeline:
                         target_label = rel.get("target_type", "Disease")
                         rel_type = rel.get("type", "ASSOCIATED_WITH")
                         try:
-                            with self.db.driver.session(
-                                database=self.database
-                            ) as session:
+                            with self._get_driver_session() as session:
                                 pattern_id = (
                                     f"{rel['source_id']}-{rel_type}-{rel['target_id']}"
                                 )
@@ -662,7 +715,7 @@ class EmbeddingPipeline:
                 except Exception as e:
                     logger.error(f"Embedding failed for chunk {chunk.chunk_id}: {e}")
                     continue
-        with self.db.driver.session(database=self.database) as session:
+        with self._get_driver_session() as session:
             protein_count = session.run(
                 "MATCH (n:Protein) WHERE n.embedding IS NOT NULL RETURN count(n) AS count"
             ).single()["count"]
@@ -728,7 +781,7 @@ class EmbeddingPipeline:
                         if doc.doc_id.startswith("pubmed_")
                         else doc.doc_id
                     )
-                    with self.db.driver.session(database=self.database) as session:
+                    with self._get_driver_session() as session:
                         session.run(
                             """
                             MERGE (c:Chunk {chunk_id: $chunk_id})
@@ -761,7 +814,7 @@ class EmbeddingPipeline:
                     continue
 
         # Show chunk embedding statistics
-        with self.db.driver.session(database=self.database) as session:
+        with self._get_driver_session() as session:
             chunk_count = session.run(
                 "MATCH (c:Chunk) WHERE c.embedding IS NOT NULL RETURN count(c) AS count"
             ).single()["count"]

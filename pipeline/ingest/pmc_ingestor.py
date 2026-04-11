@@ -7,22 +7,23 @@ as BioRxivIngestor.
 
 from __future__ import annotations
 
+import logging
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from pipeline.interfaces import GraphStore
 from pipeline.ingest.embedding_pipeline import EmbeddingPipeline
 from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.ingest.kg_pipeline import KGPipeline
 from pipeline.ingest.pmc_fetcher import PMCArticle, PMCFetcher
 from pipeline.processors.relationship_counter import RelationshipCounter
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-from src.utils.map_proteins_to_uniprot import ProteinUniProtMapper
+try:
+    from pipeline.utils.uniprot_mapper import ProteinUniProtMapper
+except ImportError:
+    ProteinUniProtMapper = None
 
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 class PMCIngestor:
     """Orchestrates PMC full-text ingestion into the knowledge graph.
 
@@ -55,9 +56,10 @@ class PMCIngestor:
         self.fetcher = PMCFetcher(rate_limit_delay=rate_limit_delay)
 
         use_opencypher = backend == "neptune"
-        self.db: Neo4jDatabase | None = None
+        self.db: GraphStore | None = None
         if backend == "neo4j":
-            self.db = Neo4jDatabase(database=database)
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
         self.kg_pipeline = KGPipeline(
             service=service,
@@ -78,7 +80,7 @@ class PMCIngestor:
         )
 
         self.relationship_counter = RelationshipCounter(database=database)
-        self.uniprot_mapper = ProteinUniProtMapper(database=database)
+        self.uniprot_mapper = ProteinUniProtMapper(database=database) if ProteinUniProtMapper is not None else None
 
         logger.info(
             f"Initialized PMCIngestor (service={service}, database={database}, "
@@ -279,8 +281,10 @@ class PMCIngestor:
             try:
                 if self.kg_pipeline.skip_node_labeling:
                     logger.info("Skipping UniProt mapping (skip_node_labeling)")
-                else:
+                elif self.uniprot_mapper is not None:
                     self.uniprot_mapper.run_mapping()
+                else:
+                    logger.info("Skipping UniProt mapping (mapper not available)")
             except Exception as e:
                 logger.error(f"UniProt mapping failed: {e}")
 
@@ -362,7 +366,7 @@ class PMCIngestor:
         if not self.db:
             return set()
         try:
-            result = self.db._execute_cypher(
+            result = self.db.execute_query(
                 "MATCH (d) WHERE d.pmcid IS NOT NULL RETURN COLLECT(d.pmcid) AS ids"
             )
             if result and result[0]:

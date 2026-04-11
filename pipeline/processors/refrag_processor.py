@@ -9,16 +9,14 @@ This processor implements the 4-step REFRAG approach:
 4. Select: Use RL policy to preserve critical chunks
 """
 
+import logging
 from typing import Any
 
 import numpy as np
 import torch
 from transformers import AutoModel, AutoTokenizer
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
+logger = logging.getLogger(__name__)
 # Module-level cache for transformer models used by ChunkEncoder
 _chunk_encoder_models: dict[
     str, tuple[Any, Any]

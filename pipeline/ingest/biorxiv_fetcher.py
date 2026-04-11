@@ -1,16 +1,13 @@
 """bioRxiv paper fetcher for retrieving preprint metadata and content URLs."""
 
+import logging
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 import aiohttp
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class BioRxivPaperMetadata:
     """Metadata for a bioRxiv paper retrieved from the bioRxiv API."""

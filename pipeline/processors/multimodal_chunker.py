@@ -6,15 +6,12 @@ and optimizing chunk size for LLM processing.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
 from pipeline.ingest.token_chunker import TokenChunker
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class MultimodalChunk:
     """A chunk with linked figures and tables."""

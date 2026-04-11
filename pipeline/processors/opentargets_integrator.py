@@ -8,18 +8,15 @@ Open Targets provides evidence-based target-disease associations with drug infor
 API endpoint: https://api.platform.opentargets.org/api/v4/graphql
 """
 
+import logging
 import asyncio
 import time
 from typing import Any
 
 import aiohttp
 
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class OpenTargetsIntegrator:
     """Integrates Open Targets drug-target-disease associations via GraphQL API."""
 
@@ -30,7 +27,7 @@ class OpenTargetsIntegrator:
         self,
         backend: str = "neo4j",
         database: str = "olink1",
-        db: Neo4jDatabase | None = None,
+        db: GraphStore | None = None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
         """
@@ -39,7 +36,7 @@ class OpenTargetsIntegrator:
         Args:
             backend: Database backend ("neo4j" or "neptune")
             database: Database name
-            db: Optional Neo4jDatabase instance
+            db: Optional GraphStore instance
             rate_limit: Delay between API requests in seconds
         """
         self.backend = backend
@@ -55,7 +52,11 @@ class OpenTargetsIntegrator:
             self.executor = create_opencypher_executor(database_type="neptune")
             self.db = None
         else:
-            self.db = db or Neo4jDatabase(database=database)
+            if db is not None:
+                self.db = db
+            else:
+                from pipeline.backends.neo4j_store import Neo4jGraphStore
+                self.db = Neo4jGraphStore(database=database)
             self.executor = None
 
     def _execute_query(
@@ -64,7 +65,7 @@ class OpenTargetsIntegrator:
         """Execute query using appropriate backend."""
         if self.backend == "neptune":
             return self.executor.execute_query(query, parameters)
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     async def _enforce_rate_limit(self) -> None:
         """Enforce rate limiting between API requests."""

@@ -4,15 +4,12 @@ Primary strategy: Entrez efetch (XML) — works for all PMC OA articles.
 Fallback: BioC JSON API — for articles not yet in efetch.
 """
 
+import logging
 import asyncio
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class PMCArticle:
     """Metadata and full text for a PMC open-access article."""
@@ -58,7 +55,7 @@ class PMCFetcher:
         """
         from Bio import Entrez
 
-        from src.config import Config
+        from pipeline.config import PipelineConfig as Config
 
         Entrez.email = Config.get_config("ENTREZ_EMAIL") or "user@example.com"
         Entrez.api_key = Config.get_config("ENTREZ_API_KEY")
@@ -105,7 +102,7 @@ class PMCFetcher:
         """Fetch articles in batches using Entrez efetch XML."""
         from Bio import Entrez
 
-        from src.config import Config
+        from pipeline.config import PipelineConfig as Config
 
         Entrez.email = Config.get_config("ENTREZ_EMAIL") or "user@example.com"
         Entrez.api_key = Config.get_config("ENTREZ_API_KEY")

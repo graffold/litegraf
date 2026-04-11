@@ -6,6 +6,7 @@ the entire PubMed database (35+ million abstracts) with robust error handling, p
 and resume capabilities.
 """
 
+import logging
 import asyncio
 import hashlib
 import json
@@ -59,10 +60,8 @@ import signal
 from enum import Enum
 from urllib.error import HTTPError
 
-from src.utils.logging_utils import setup_logging
-
 try:
-    from src.models.document import Chunk, ProcessedDocument
+    from pipeline.ingest.ingestor import Chunk, ProcessedDocument
 except ImportError:
     # Create basic classes for compatibility
     @dataclass
@@ -78,12 +77,10 @@ except ImportError:
         text: str
 
 
-from src.config import Config
-from src.core.database import DatabaseInterface
+from pipeline.config import PipelineConfig as Config
+from pipeline.interfaces import GraphStore as DatabaseInterface
 
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class ScrapingState(Enum):
     """Enum for tracking scraping states"""
 

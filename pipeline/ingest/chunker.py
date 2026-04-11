@@ -1,11 +1,8 @@
+import logging
 import spacy
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class Chunker:
     def __init__(self, chunk_size: int = 2000, chunk_overlap: int = 200):
         self.chunk_size = chunk_size

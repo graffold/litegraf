@@ -2,16 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 
 import tiktoken
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
+logger = logging.getLogger(__name__)
 # Encoding lookup consistent with TokenCounter
 _MODEL_ENCODINGS: dict[str, str] = {
     "gpt-4": "cl100k_base",

@@ -1,3 +1,4 @@
+import logging
 import asyncio
 import os
 import re
@@ -8,12 +9,12 @@ from typing import Any, TypedDict
 
 from Bio import Entrez
 from langgraph.graph import END, START, StateGraph
-from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
 from pipeline.ingest.ontology_pipeline import Neo4jBackendAdapter, OntologyPipeline
 from pipeline.ingest.sentence_locator import annotate_relationships
 from pipeline.ingest.token_chunker import TokenChunker
+from pipeline.interfaces import EmbeddingProvider, GraphStore, LLMProvider
 from pipeline.processors.entity_resolver import EntityResolver
 from pipeline.processors.incremental_consolidation import IncrementalConsolidator
 from pipeline.processors.ingestion_run_report import (
@@ -21,22 +22,15 @@ from pipeline.processors.ingestion_run_report import (
     IngestionRunReport,
 )
 from pipeline.processors.relationship_counter import RelationshipCounter
-from src.cache import ingestion_subgraph_cache
-from src.cache.redis_cache import get_redis_cache
-from src.config import Config
-from src.core.context_graph_interfaces import (
+from pipeline.config import PipelineConfig as Config
+from pipeline.utils.context_graph_interfaces import (
     ContextGraphManager as ContextGraphManagerBase,
 )
-from src.core.context_graph_interfaces import ProvenanceFactory as ProvenanceFactoryBase
-from src.core.database import Neo4jDatabase
-from src.factories.embedding_factory import get_embedder
-from src.factories.llm_factory import get_llm
-from src.utils import logging_utils
-from src.utils.database_config import DatabaseConfig
-from src.utils.unified_retry_utils import UnifiedRetryUtilities
+from pipeline.utils.context_graph_interfaces import ProvenanceFactory as ProvenanceFactoryBase
+from pipeline.utils.database_config import DatabaseConfig
+from pipeline.utils.retry import UnifiedRetryUtilities
 
-logger = logging_utils.setup_logging()
-
+logger = logging.getLogger(__name__)
 os.environ["TOKENIZERS_PARALLELISM"] = Config.get_config(
     "TOKENIZERS_PARALLELISM"
 ).lower()
@@ -55,7 +49,10 @@ class PipelineState(TypedDict):
 class KGPipeline:
     def __init__(
         self,
-        service: str = "local",
+        graph_store: GraphStore,
+        embedding_provider: EmbeddingProvider,
+        llm_provider: LLMProvider,
+        *,
         database: str = "olink",
         enable_consolidation: bool = False,
         max_tokens: int = 512,
@@ -63,9 +60,24 @@ class KGPipeline:
         skip_node_labeling: bool = False,
         context_graph_manager: ContextGraphManagerBase | None = None,
         provenance_factory: ProvenanceFactoryBase | None = None,
-        **kwargs,
     ):
-        self.service = service  # Store service for later use
+        # --- Type validation for injected backends ---
+        if not isinstance(graph_store, GraphStore):
+            raise TypeError(
+                f"graph_store must be a GraphStore instance, got {type(graph_store).__name__}"
+            )
+        if not isinstance(embedding_provider, EmbeddingProvider):
+            raise TypeError(
+                f"embedding_provider must be an EmbeddingProvider instance, got {type(embedding_provider).__name__}"
+            )
+        if not isinstance(llm_provider, LLMProvider):
+            raise TypeError(
+                f"llm_provider must be an LLMProvider instance, got {type(llm_provider).__name__}"
+            )
+
+        self.db = graph_store
+        self.embedder = embedding_provider
+        self.llm = llm_provider
         self.database = database
         self.enable_consolidation = enable_consolidation
         self.skip_node_labeling = skip_node_labeling
@@ -89,46 +101,12 @@ class KGPipeline:
             f"📊 Batch size: {self.batch_size}, Consolidation: {enable_consolidation}"
         )
 
-        # Neo4j mode with optional consolidation
-        self.db = Neo4jDatabase(database=database)
-        if enable_consolidation:
+        if enable_consolidation and hasattr(self.db, "enable_consolidation"):
             self.db.enable_consolidation()
             logger.info(
-                "🎯 Consolidation enabled for Neo4j database - duplicate relationships will be prevented"
+                "🎯 Consolidation enabled for graph store - duplicate relationships will be prevented"
             )
 
-        logger.info(f"Initializing KGPipeline with service={service}")
-        embed_kwargs = {}
-        llm_kwargs = kwargs.copy()
-
-        # Service configuration - removed OpenAI and HuggingFace Hub dependencies
-        if service == "sagemaker-llama3":
-            llm_type = "sagemaker-llama3"
-            embed_type = "huggingface"
-            endpoint_name = Config.get_config("SAGEMAKER_ENDPOINT_NAME")
-            if not endpoint_name:
-                raise ValueError(
-                    "SAGEMAKER_ENDPOINT_NAME required for sagemaker-llama3"
-                )
-            llm_kwargs["endpoint_name"] = endpoint_name
-        elif service == "bedrock":
-            llm_type = "bedrock"
-            embed_type = "huggingface"
-            embed_kwargs["model_name"] = "all-mpnet-base-v2"
-        else:
-            llm_type = "local"
-            embed_type = "huggingface"
-            embed_kwargs["model_name"] = "all-mpnet-base-v2"
-
-        # Log deprecation warning for removed services
-        if service in ["openai", "hf-inference"]:
-            logger.warning(
-                f"Service '{service}' no longer supported (dependencies removed). Using local models."
-            )
-
-        logger.debug(f"Selected LLM type: {llm_type}, Embedder type: {embed_type}")
-        self.embedder = get_embedder(embed_type, **embed_kwargs)
-        self.llm = get_llm(llm_type, **llm_kwargs)
         self.entities = ["Protein", "Disease", "Entity"]
         self.relations = ["ASSOCIATED_WITH", "CAUSES", "TREATS"]
         self.potential_schema = [
@@ -137,12 +115,14 @@ class KGPipeline:
             ("Protein", "TREATS", "Disease"),
         ]
 
-        # Initialize SimpleKGPipeline
+        # Initialize SimpleKGPipeline (optional — requires neo4j_graphrag-compatible backends)
         self.kg_pipeline = None
         try:
+            from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
+
             self.kg_pipeline = SimpleKGPipeline(
                 llm=self.llm,
-                driver=self.db.driver,
+                driver=getattr(self.db, "driver", None),
                 from_pdf=False,
                 embedder=self.embedder,
                 entities=self.entities,
@@ -151,8 +131,10 @@ class KGPipeline:
                 neo4j_database=self.database,
             )
         except Exception as e:
-            logger.error(f"Failed to initialize SimpleKGPipeline: {e}", exc_info=True)
-            raise
+            logger.warning(
+                f"SimpleKGPipeline not available (backends may not support neo4j_graphrag interface): {e}"
+            )
+            self.kg_pipeline = None
 
         # Use config batch size or default to 10 for better throughput on A100
         if self.batch_size < 10:
@@ -165,7 +147,7 @@ class KGPipeline:
         neo4j_adapter = Neo4jBackendAdapter(self.db)
         self.ontology_pipeline = OntologyPipeline(backend_adapter=neo4j_adapter)
         self.relationship_counter = RelationshipCounter(database=self.database)
-        self.entity_resolver = EntityResolver(self.db)
+        self.entity_resolver = EntityResolver(graph_store=self.db)
         self.incremental_consolidator = IncrementalConsolidator(
             db=self.db,
             chunk_threshold=25,  # Run consolidation every 25 chunks
@@ -197,12 +179,12 @@ class KGPipeline:
             )
 
         self.failed_chunks: list[Any] = []
-        self.run_report = IngestionRunReport(service=service, database=database)
+        self.run_report = IngestionRunReport(database=database)
         self.ingestion_job_id: str | None = None
         self.ingested_at: str | None = None
 
-        # Redis cache for ephemeral sub-graph tracking (graceful degradation)
-        self._redis = get_redis_cache(logger=logger)
+        # Redis cache removed — sub-graph tracking is handled externally if needed
+        self._redis = None
 
     def _ensure_chunk_node(
         self,
@@ -1194,21 +1176,7 @@ Return only valid JSON:"""
                     item["doc_id"],
                 )
 
-                # Track node/edge IDs in Redis ephemeral sub-graph cache
-                if self.ingestion_job_id:
-                    ingestion_subgraph_cache.add_nodes(
-                        self._redis,
-                        self.ingestion_job_id,
-                        [n["id"] for n in enhanced_nodes],
-                    )
-                    ingestion_subgraph_cache.add_edges(
-                        self._redis,
-                        self.ingestion_job_id,
-                        [
-                            f"{r['source_id']}:{r['type']}:{r['target_id']}"
-                            for r in enhanced_relationships
-                        ],
-                    )
+                # Sub-graph tracking removed — handled externally if needed
             except Exception as db_error:
                 logger.error(
                     f"Failed to store results for chunk {item['chunk_id']}: {db_error}"
@@ -1384,7 +1352,7 @@ Return only valid JSON:"""
         start_ns = time.perf_counter_ns()
         self.failed_chunks = []
         self.run_report = IngestionRunReport(
-            service=self.service, database=self.database
+            database=self.database
         )
 
         # Re-chunk documents using token-based chunker
@@ -1517,9 +1485,7 @@ Return only valid JSON:"""
         # Finalize and emit the TRL-3 ingestion run report
         self.last_run_report = self.run_report.finalize()
 
-        # Set TTL on Redis sub-graph sets now that the job is complete
-        if self.ingestion_job_id:
-            ingestion_subgraph_cache.set_ttl(self._redis, self.ingestion_job_id)
+        # Sub-graph TTL removed — handled externally if needed
 
         return docs
 
@@ -2184,7 +2150,6 @@ Return only valid JSON:"""
         from pipeline.ingest.embedding_pipeline_neo4j import Neo4jEmbeddingPipeline
 
         embedding_pipeline = Neo4jEmbeddingPipeline(
-            service=self.service,
             database=self.database,
         )
         try:

@@ -14,7 +14,7 @@ import re
 from datetime import datetime
 from typing import Any
 
-from src.core.database import Neo4jDatabase
+from pipeline.interfaces import GraphStore
 
 from .base import (
     BaseEnrichmentProcessor,
@@ -30,21 +30,25 @@ logger = logging.getLogger(__name__)
 class NodeAnnotator(BaseEnrichmentProcessor):
     """Handles property addition and node class creation for non-text columns."""
 
-    def __init__(self, database: str = "cvd1", db: Neo4jDatabase | None = None):
+    def __init__(self, graph_store: GraphStore, *, database: str = "cvd1"):
         """
         Initialize node annotator.
 
         Args:
+            graph_store: Graph database backend
             database: Database name
-            db: Database connection (optional)
         """
-        self.db = db or Neo4jDatabase(database=database)
+        if not isinstance(graph_store, GraphStore):
+            raise TypeError(
+                f"graph_store must be a GraphStore, got {type(graph_store)}"
+            )
+        self.db = graph_store
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query using Neo4j."""
-        return self.db._execute_cypher(query, parameters)
+        """Execute a query using the graph store."""
+        return self.db.execute_query(query, parameters)
 
     async def process(
         self, data: list[dict[str, Any]], analysis: dict[str, ColumnAnalysis]

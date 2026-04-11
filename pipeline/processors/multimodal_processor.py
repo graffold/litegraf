@@ -4,6 +4,7 @@ Handles extraction of text, images, tables, and other content from PDF documents
 Integrates with existing KGPipeline for biomedical knowledge graph construction.
 """
 
+import logging
 import base64
 import io
 from dataclasses import dataclass, field
@@ -13,11 +14,7 @@ from typing import Any
 from PIL import Image
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class ExtractedImage:
     """Represents an image extracted from a document."""

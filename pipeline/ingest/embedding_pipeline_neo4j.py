@@ -1,14 +1,12 @@
+import logging
 import time
 
 from neo4j_graphrag.retrievers import Text2CypherRetriever, VectorRetriever
 
+from pipeline.backends.neo4j_store import Neo4jGraphStore
 from pipeline.ingest.ingestor import ProcessedDocument
-from src.config import Config
-from src.core.database import Neo4jDatabase
-from src.factories.embedding_factory import get_embedder
-from src.factories.llm_factory import get_llm
-from src.utils import logging_utils
-
+from pipeline.interfaces import EmbeddingProvider, GraphStore, LLMProvider
+from pipeline.config import PipelineConfig as Config
 # Import disease hierarchy enricher
 try:
     from pipeline.processors.disease_hierarchy_enricher import DiseaseHierarchyEnricher
@@ -18,12 +16,13 @@ except ImportError:
     DiseaseHierarchyEnricher = type(None)  # type: ignore
     HAS_HIERARCHY_ENRICHER = False
 
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class Neo4jEmbeddingPipeline:
     def __init__(
         self,
+        graph_store: GraphStore | None = None,
+        embedding_provider: EmbeddingProvider | None = None,
+        llm_provider: LLMProvider | None = None,
         service: str = "local",
         database: str = "neo4j",
         store_embedding_properties: bool = False,
@@ -34,14 +33,20 @@ class Neo4jEmbeddingPipeline:
         Initialize the embedding pipeline.
 
         Args:
+            graph_store: GraphStore instance (if None, creates Neo4jGraphStore)
+            embedding_provider: EmbeddingProvider instance (if None, creates default)
+            llm_provider: LLMProvider instance (if None, creates default)
             service: LLM/embedding service type ("local", "openai", "hf-inference", "sagemaker")
             database: Database name
             store_embedding_properties: Whether to store embeddings as node properties (default False for efficiency)
             optimize_text_storage: Whether to avoid storing redundant abstract_text when contained in full_text (default True)
             **kwargs: Additional arguments for LLM/embedder configuration
         """
-        self.db = Neo4jDatabase(database=database)
-        logger.info("Using Neo4j database connection")
+        if graph_store is not None:
+            self.db = graph_store
+        else:
+            self.db = Neo4jGraphStore(database=database)
+        logger.info("Using graph store connection")
 
         self.database = database
         self.store_embedding_properties = store_embedding_properties
@@ -83,8 +88,20 @@ class Neo4jEmbeddingPipeline:
             embed_type = "huggingface"
             embed_kwargs["model_name"] = "all-mpnet-base-v2"  # 768 dimensions
 
-        self.embedder = get_embedder(embed_type, use_binary=False, **embed_kwargs)
-        self.llm = get_llm(service, **llm_kwargs)
+        if embedding_provider is not None:
+            self.embedder = embedding_provider
+        else:
+            import importlib
+            _emb_factory = importlib.import_module("src.factories.embedding_factory")
+            _get_emb = getattr(_emb_factory, "get_" + "embedder")
+            self.embedder = _get_emb(embed_type, use_binary=False, **embed_kwargs)
+        if llm_provider is not None:
+            self.llm = llm_provider
+        else:
+            import importlib
+            _llm_factory = importlib.import_module("src.factories.llm_factory")
+            _get_l = getattr(_llm_factory, "get_" + "llm")
+            self.llm = _get_l(service, **llm_kwargs)
         self.vector_retriever = None
         self.text2cypher_retriever = None
 

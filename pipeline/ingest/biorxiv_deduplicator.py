@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from difflib import SequenceMatcher
 from typing import Any
 
 from pipeline.ingest.biorxiv_fetcher import BioRxivPaperMetadata
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 def _normalize_title(title: str) -> str:
     """Normalize a title for comparison: lowercase, strip whitespace and punctuation."""
     title = title.lower().strip()

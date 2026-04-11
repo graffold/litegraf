@@ -11,10 +11,9 @@ This class manages the second phase of enrichment for columns identified as text
 import json
 import logging
 from datetime import datetime
-from typing import Any, cast
+from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.factories.database_factory import DatabaseFactory
+from pipeline.interfaces import GraphStore
 
 from .base import (
     BaseEnrichmentProcessor,
@@ -29,26 +28,29 @@ logger = logging.getLogger(__name__)
 class TextRichProcessor(BaseEnrichmentProcessor):
     """Processes text-rich columns using KG extraction."""
 
-    def __init__(self, database_factory: DatabaseFactory, database: str = "cvd1"):
+    def __init__(self, graph_store: GraphStore, *, database: str = "cvd1"):
         """
         Initialize text-rich processor.
 
         Args:
-            database_factory: Factory for database connections
+            graph_store: Graph database backend
             database: Database name to use
         """
-        self.database_factory = database_factory
+        if not isinstance(graph_store, GraphStore):
+            raise TypeError(
+                f"graph_store must be a GraphStore, got {type(graph_store)}"
+            )
         self.database = database
         self.extraction_counts = {"extractions": 0, "entities": 0, "relationships": 0}
 
-        # Initialize Neo4j database connection
-        self.db = Neo4jDatabase(database=database)
+        # Use injected graph store
+        self.db = graph_store
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query using Neo4j."""
-        return cast("Neo4jDatabase", self.db)._execute_cypher(query, parameters)
+        """Execute a query using the graph store."""
+        return self.db.execute_query(query, parameters)
 
     async def process(
         self, data: list[dict[str, Any]], analysis: dict[str, ColumnAnalysis]
@@ -474,9 +476,7 @@ class TextRichProcessor(BaseEnrichmentProcessor):
         )
 
         try:
-            # Get database connection using stored database name
-            self.database_factory.create_database(database=self.database)
-
+            # Use the injected graph store directly
             properties_added = 0
             batch_size = 100
 

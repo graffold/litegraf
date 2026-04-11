@@ -7,29 +7,30 @@ Creates nodes for terms and relationships for hierarchy and other defined connec
 Deterministic, fast, and structure-preserving.
 """
 
+import logging
 import re
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class OBOStructureProcessor:
     """
     Parses OBO files and builds a Knowledge Graph directly from the ontology structure.
     """
 
-    def __init__(self, database: str = "cvd1"):
+    def __init__(self, database: str = "cvd1", graph_store: GraphStore | None = None):
         self.database = database
-        self.db = Neo4jDatabase(database=database)
+        if graph_store is not None:
+            self.db = graph_store
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         """Execute a query."""
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     def parse_obo_file(
         self, file_path: str
@@ -341,7 +342,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    processor = OBOStructureProcessor(database=args.database)
+    from pipeline.backends.neo4j_store import Neo4jGraphStore
+    processor = OBOStructureProcessor(database=args.database, graph_store=Neo4jGraphStore(database=args.database))
     try:
         processor.ingest_ontology(args.file)
     finally:

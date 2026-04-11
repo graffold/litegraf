@@ -7,10 +7,12 @@ consolidation, and UniProt mapping.
 
 from __future__ import annotations
 
+import logging
 import asyncio
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from pipeline.interfaces import GraphStore
 from pipeline.ingest.biorxiv_deduplicator import BioRxivDeduplicator
 from pipeline.ingest.biorxiv_fetcher import BioRxivFetcher, BioRxivPaperMetadata
 from pipeline.ingest.content_extractor import ContentExtractor
@@ -19,12 +21,12 @@ from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.ingest.kg_pipeline import KGPipeline
 from pipeline.ingest.section_parser import PaperSection, SectionParser
 from pipeline.processors.relationship_counter import RelationshipCounter
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-from src.utils.map_proteins_to_uniprot import ProteinUniProtMapper
+try:
+    from pipeline.utils.uniprot_mapper import ProteinUniProtMapper
+except ImportError:
+    ProteinUniProtMapper = None
 
-logger = setup_logging(name=__name__)
-
+logger = logging.getLogger(__name__)
 # Stage weights for progress calculation
 STAGE_WEIGHTS = {
     "fetching": 0.10,  # 10% - Fetch papers from API
@@ -70,10 +72,11 @@ class BioRxivIngestor:
         self.extractor = ContentExtractor()
         self.parser = SectionParser()
 
-        # Database connection for deduplicator (needs _execute_cypher)
+        # Database connection for deduplicator (needs execute_query)
         use_opencypher = backend == "neptune"
         if backend == "neo4j":
-            self.db = Neo4jDatabase(database=database)
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db: GraphStore | None = Neo4jGraphStore(database=database)
         else:
             self.db = None  # Neptune handled internally by KGPipeline
 
@@ -101,7 +104,7 @@ class BioRxivIngestor:
             database=database,
         )
 
-        self.uniprot_mapper = ProteinUniProtMapper(database=database)
+        self.uniprot_mapper = ProteinUniProtMapper(database=database) if ProteinUniProtMapper is not None else None
 
         logger.info(
             f"Initialized BioRxivIngestor (service={service}, database={database}, "
@@ -359,8 +362,10 @@ class BioRxivIngestor:
         try:
             if self.kg_pipeline.skip_node_labeling:
                 logger.info("Skipping UniProt mapping (skip_node_labeling)")
-            else:
+            elif self.uniprot_mapper is not None:
                 self.uniprot_mapper.run_mapping()
+            else:
+                logger.info("Skipping UniProt mapping (mapper not available)")
             await report_progress("uniprot", 1.0, 1, 1)
             completed_stages.add("uniprot")
         except Exception as e:

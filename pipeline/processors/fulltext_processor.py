@@ -27,7 +27,7 @@ try:
 except ImportError:
     Entrez = None
 
-from src.config import Config
+from pipeline.config import PipelineConfig as Config
 
 logger = logging.getLogger(__name__)
 

@@ -14,6 +14,7 @@ This module provides comprehensive entity resolution capab                      
 5. Node label merging (e.g., UniprotSubcellularLocation -> SubcellularLocation)
 """
 
+import logging
 import difflib
 import random
 import re
@@ -21,13 +22,9 @@ import time
 from collections import defaultdict
 from typing import Any
 
+from pipeline.interfaces import GraphStore
 from pipeline.processors.ontology_filter import OntologyFilter
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class EntityResolver:
     """
     Advanced entity resolution system that consolidates entities using ontology mappings
@@ -43,23 +40,20 @@ class EntityResolver:
 
     def __init__(
         self,
-        db: Neo4jDatabase | None = None,
+        graph_store: GraphStore,
         ontology_filter: OntologyFilter | None = None,
-        database: str = "cvd1",
     ):
-        self.db = db or Neo4jDatabase(database=database)
+        self.db = graph_store
         self.ontology_filter = ontology_filter or OntologyFilter()
         self.disease_ontology = self.ontology_filter.disease_ontology
         self.protein_ontology = self.ontology_filter.protein_ontology
-        logger.info(
-            f"Initialized EntityResolver with ontology mappings, database: {database}"
-        )
+        logger.info("Initialized EntityResolver with ontology mappings")
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query using Neo4j."""
-        return self.db._execute_cypher(query, parameters)
+        """Execute a query using the graph store."""
+        return self.db.execute_query(query, parameters)
 
     def _normalize_name(self, name: str) -> str:
         """Normalize entity names for comparison."""
@@ -1158,22 +1152,29 @@ class EntityResolver:
         # Step 1: Map proteins to UniProt IDs (critical prerequisite for consolidation)
         logger.info("Step 1: Mapping proteins to UniProt IDs...")
         try:
-            from src.utils.enhanced_uniprot_mapper import EnhancedUniProtMapper
+            from pipeline.utils.uniprot_mapper import EnhancedUniProtMapper
+        except ImportError:
+            EnhancedUniProtMapper = None
 
-            mapper = EnhancedUniProtMapper(
-                database=self.db.database if self.db else None
-            )
-            if dry_run:
-                uniprot_stats = mapper.run_mapping(dry_run=True)
-            else:
-                uniprot_stats = mapper.run_mapping(dry_run=False)
+        if EnhancedUniProtMapper is None:
+            logger.warning("EnhancedUniProtMapper not available, skipping UniProt mapping step")
+            all_stats["uniprot_mapping"] = {"skipped": True, "reason": "mapper not available"}
+        else:
+            try:
+                mapper = EnhancedUniProtMapper(
+                    database=self.db.database if self.db else None
+                )
+                if dry_run:
+                    uniprot_stats = mapper.run_mapping(dry_run=True)
+                else:
+                    uniprot_stats = mapper.run_mapping(dry_run=False)
 
-            all_stats["uniprot_mapping"] = uniprot_stats
-            logger.info(f"Enhanced UniProt mapping completed: {uniprot_stats}")
+                all_stats["uniprot_mapping"] = uniprot_stats
+                logger.info(f"Enhanced UniProt mapping completed: {uniprot_stats}")
 
-        except Exception as e:
-            logger.error(f"UniProt mapping failed: {e}")
-            all_stats["uniprot_mapping"] = {"error": str(e)}
+            except Exception as e:
+                logger.error(f"UniProt mapping failed: {e}")
+                all_stats["uniprot_mapping"] = {"error": str(e)}
 
         # Step 2: Consolidate proteins by UniProt ID first (most accurate)
         logger.info("Step 2: Consolidating proteins by UniProt ID...")
@@ -1470,9 +1471,16 @@ def main():
             property_mapping[canonical_prop.strip()] = dup_props
 
     try:
+        from pipeline.backends.neo4j_store import Neo4jGraphStore
+
+        graph_store = Neo4jGraphStore(
+            uri="bolt://localhost:7687",
+            auth=("neo4j", "password"),
+            database=args.database,
+        )
         ontology_filter = OntologyFilter()
         resolver = EntityResolver(
-            db=None, ontology_filter=ontology_filter, database=args.database
+            graph_store=graph_store, ontology_filter=ontology_filter
         )
 
         if args.operation == "consolidate":

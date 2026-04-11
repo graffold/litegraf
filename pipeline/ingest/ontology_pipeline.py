@@ -17,11 +17,7 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from pipeline.processors.ontology_filter import OntologyFilter
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class BackendAdapter(ABC):
     """Abstract base class for backend-specific query execution."""
 

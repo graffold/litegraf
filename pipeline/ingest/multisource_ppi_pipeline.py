@@ -3,6 +3,7 @@ Enhanced PPI integration pipeline for multi-source data management.
 Handles multiple CSV files from different sources (e.g., FunCoup, STRING, BioGRID).
 """
 
+import logging
 import os
 import sys
 from datetime import datetime
@@ -10,13 +11,20 @@ from pathlib import Path
 from typing import Any
 
 from pipeline.processors.ppi_csv_processor import PPICSVProcessor
-from src.core.multisource_ppi_database import MultiSourcePPIDatabaseInterface
-from src.models.ppi_models import PPIBatchData
-from src.utils.logging_utils import setup_logging
+import importlib as _importlib
 
-logger = setup_logging()
+try:
+    _multisource_ppi_db = _importlib.import_module("src.core.multisource_ppi_database")
+    MultiSourcePPIDatabaseInterface = _multisource_ppi_db.MultiSourcePPIDatabaseInterface
+except (ImportError, ModuleNotFoundError):
+    MultiSourcePPIDatabaseInterface = None
 
-
+try:
+    _ppi_models = _importlib.import_module("src.models.ppi_models")
+    PPIBatchData = _ppi_models.PPIBatchData
+except (ImportError, ModuleNotFoundError):
+    PPIBatchData = None
+logger = logging.getLogger(__name__)
 class MultiSourcePPIPipeline:
     """
     Enhanced pipeline for processing multiple PPI data sources.

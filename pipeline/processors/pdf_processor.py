@@ -6,17 +6,14 @@ text, figures, tables, and metadata from PDF documents by converting pages
 to images and sending them to the vision model.
 """
 
+import logging
 import base64
 import json
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Any
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Custom Exceptions
 # ---------------------------------------------------------------------------

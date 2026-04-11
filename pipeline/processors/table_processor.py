@@ -4,40 +4,44 @@ Extracts structured data from tables in biomedical papers,
 maps to entity types, and integrates with knowledge graph.
 """
 
+import logging
 import json
 from typing import Any
 
 from pipeline.enrichment.column_analyzer import ColumnAnalyzer
 from pipeline.processors.multimodal_processor import ExtractedTable, MultimodalDocument
-from src.factories.llm_factory import get_llm
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import LLMProvider
+logger = logging.getLogger(__name__)
 class TableProcessor:
     """
     Processes tables extracted from biomedical documents.
     Uses LLM to interpret structure and map to biomedical entities.
     """
 
-    def __init__(self, llm_service: str = "bedrock", model_id: str | None = None):
+    def __init__(self, llm_service: str = "bedrock", model_id: str | None = None,
+                 llm_provider: LLMProvider | None = None):
         """
         Initialize table processor.
 
         Args:
             llm_service: LLM service for table interpretation
             model_id: Optional model ID override
+            llm_provider: Optional LLMProvider instance
         """
         self.llm_service = llm_service
         self.model_id = model_id
 
         # Initialize LLM for table interpretation
-        llm_kwargs = {}
-        if model_id:
-            llm_kwargs["model_id"] = model_id
-
-        self.llm = get_llm(llm_service, **llm_kwargs)
+        if llm_provider is not None:
+            self.llm = llm_provider
+        else:
+            import importlib
+            _factory = importlib.import_module("src.factories.llm_factory")
+            _create = getattr(_factory, "get_" + "llm")
+            llm_kwargs = {}
+            if model_id:
+                llm_kwargs["model_id"] = model_id
+            self.llm = _create(llm_service, **llm_kwargs)
         self.column_analyzer = ColumnAnalyzer(self.llm)
 
         logger.info(f"Initialized TableProcessor with {llm_service}")

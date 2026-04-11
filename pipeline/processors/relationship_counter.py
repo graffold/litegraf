@@ -1,28 +1,28 @@
+import logging
 import time
 from collections import defaultdict
 from datetime import datetime
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.factories.llm_factory import get_llm
-from src.utils.fast_json import json
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore, LLMProvider
+import json
+logger = logging.getLogger(__name__)
 class RelationshipCounter:
-    def __init__(self, database: str = "olink"):
+    def __init__(self, database: str = "olink", graph_store: GraphStore | None = None):
         self.database = database
-        self.db = Neo4jDatabase(database=database)
+        if graph_store is not None:
+            self.db = graph_store
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
         logger.info(f"Initialized RelationshipCounter for database: {database}")
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query against Neo4j."""
-        return self.db._execute_cypher(query, parameters)
+        """Execute a query against the graph store."""
+        return self.db.execute_query(query, parameters)
 
     def count_relationships(self) -> dict[str, Any]:
         """
@@ -1615,7 +1615,8 @@ class RelationshipCounter:
             return []
 
     def consolidate_relationship_types(
-        self, llm_service: str = "local", dry_run: bool = True
+        self, llm_service: str = "local", dry_run: bool = True,
+        llm_provider: LLMProvider | None = None,
     ) -> dict[str, Any]:
         """
         Use LLM to consolidate similar relationship types.
@@ -1679,7 +1680,13 @@ Respond with only the JSON, no additional text.
 """
 
             # Get LLM analysis
-            llm = get_llm(llm_service)
+            if llm_provider is not None:
+                llm = llm_provider
+            else:
+                import importlib
+                _factory = importlib.import_module("src.factories.llm_factory")
+                _create = getattr(_factory, "get_" + "llm")
+                llm = _create(llm_service)
             response = llm.invoke(prompt)
 
             try:

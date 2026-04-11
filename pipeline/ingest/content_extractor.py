@@ -4,6 +4,7 @@ Uses langextract for HTML content extraction with a regex-based fallback,
 and pymupdf (fitz) for PDF extraction.
 """
 
+import logging
 import asyncio
 import re
 from typing import Any
@@ -25,11 +26,7 @@ from pipeline.ingest.extraction_strategies import (
     PyMuPDFStrategy,
     RegexStrategy,
 )
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 class ContentExtractor:
     """Extracts clean text from bioRxiv paper HTML or PDF.
 

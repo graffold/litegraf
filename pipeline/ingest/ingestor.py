@@ -1,14 +1,12 @@
+import logging
 import time
 from dataclasses import dataclass, field
 
 from Bio import Entrez
 
-from src.config import Config
-from src.core.database import Neo4jDatabase
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
+from pipeline.interfaces import GraphStore
+from pipeline.config import PipelineConfig as Config
+logger = logging.getLogger(__name__)
 Entrez.email = Config.get_config("ENTREZ_EMAIL")
 Entrez.api_key = Config.get_config("ENTREZ_API_KEY")
 
@@ -34,13 +32,16 @@ class ProcessedDocument:
 
 
 class Ingestor:
-    def __init__(self):
-        """Initialize ingestor with Entrez email and Neo4j database."""
+    def __init__(self, graph_store: GraphStore | None = None):
+        """Initialize ingestor with Entrez email and graph store."""
         self.email = Config.get_config("ENTREZ_EMAIL") or "your.email@example.com"
         Entrez.email = self.email
         Entrez.api_key = Config.get_config("ENTREZ_API_KEY")
-        self.db = Neo4jDatabase()
-        logger.info("Initialized Ingestor with Neo4jDatabase")
+        if graph_store is None:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            graph_store = Neo4jGraphStore()
+        self.db = graph_store
+        logger.info("Initialized Ingestor with graph store")
 
     def _get_existing_pmids(self) -> set[str]:
         """Query Neo4j for existing PMIDs."""
@@ -257,6 +258,6 @@ class Ingestor:
             return []
 
     def close(self):
-        """Close Neo4j database connection."""
+        """Close database connection."""
         self.db.close()
-        logger.info("Closed Ingestor Neo4j connection")
+        logger.info("Closed Ingestor database connection")

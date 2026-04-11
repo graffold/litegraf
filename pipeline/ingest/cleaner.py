@@ -1,11 +1,8 @@
+import logging
 import re
 
 from pipeline.ingest.ingestor import ProcessedDocument
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class Cleaner:
     @staticmethod
     def clean_text(text: str) -> str:

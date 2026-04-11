@@ -1,12 +1,9 @@
+import logging
 import csv
 from typing import Any
 
 from pipeline.processors.biological_enrichment_framework import EnrichmentProcessor
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class CellTypeEnricher(EnrichmentProcessor):
     """
     Processor for enriching proteins with cell type expression data.

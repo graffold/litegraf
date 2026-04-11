@@ -8,15 +8,12 @@ DisGeNET provides curated gene-disease associations with evidence scores.
 File format: TSV with columns including geneId, diseaseId, score, source, pmids
 """
 
+import logging
 import csv
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class DisGeNETIntegrator:
     """Integrates DisGeNET gene-disease associations into the knowledge graph."""
 
@@ -24,7 +21,7 @@ class DisGeNETIntegrator:
         self,
         backend: str = "neo4j",
         database: str = "olink1",
-        db: Neo4jDatabase | None = None,
+        db: GraphStore | None = None,
     ):
         """
         Initialize DisGeNET integrator.
@@ -32,7 +29,7 @@ class DisGeNETIntegrator:
         Args:
             backend: Database backend ("neo4j" or "neptune")
             database: Database name
-            db: Optional Neo4jDatabase instance
+            db: Optional GraphStore instance
         """
         self.backend = backend
         self.database = database
@@ -45,7 +42,11 @@ class DisGeNETIntegrator:
             self.executor = create_opencypher_executor(database_type="neptune")
             self.db = None
         else:
-            self.db = db or Neo4jDatabase(database=database)
+            if db is not None:
+                self.db = db
+            else:
+                from pipeline.backends.neo4j_store import Neo4jGraphStore
+                self.db = Neo4jGraphStore(database=database)
             self.executor = None
 
     def _execute_query(
@@ -54,7 +55,7 @@ class DisGeNETIntegrator:
         """Execute query using appropriate backend."""
         if self.backend == "neptune":
             return self.executor.execute_query(query, parameters)
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     def parse_disgenet_file(
         self, file_path: str, score_threshold: float = 0.06

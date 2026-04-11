@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.factories.database_factory import DatabaseFactory
+from pipeline.interfaces import GraphStore, LLMProvider
 
 from .base import EnrichmentStats
 from .column_analyzer import ColumnAnalyzer
@@ -31,37 +31,39 @@ class EnrichmentOrchestrator:
 
     def __init__(
         self,
+        graph_store: GraphStore,
+        llm_provider: LLMProvider,
+        *,
         database: str = "cvd1",
-        service: str = "llama3",
-        database_factory: DatabaseFactory | None = None,
     ):
         """
         Initialize enrichment orchestrator.
 
         Args:
+            graph_store: Graph database backend
+            llm_provider: LLM backend for KG extraction
             database: Database name
-            service: LLM service for KG extraction
-            database_factory: Database factory (optional)
         """
+        if not isinstance(graph_store, GraphStore):
+            raise TypeError(
+                f"graph_store must be a GraphStore, got {type(graph_store)}"
+            )
+        if not isinstance(llm_provider, LLMProvider):
+            raise TypeError(
+                f"llm_provider must be a LLMProvider, got {type(llm_provider)}"
+            )
+        self.db = graph_store
+        self.llm = llm_provider
         self.database = database
-        self.service = service
 
         # Initialize components
         self.column_analyzer = ColumnAnalyzer()
 
-        # Create database factory if not provided
-        if database_factory is None:
-            database_factory = DatabaseFactory()
-
-        # Initialize database and processors
-        from src.core.database import Neo4jDatabase
-
-        db = Neo4jDatabase(database=database)
-
+        # Initialize processors with injected graph store
         self.text_processor = TextRichProcessor(
-            database_factory=database_factory, database=database
+            graph_store, database=database
         )
-        self.node_annotator = NodeAnnotator(database=database, db=db)
+        self.node_annotator = NodeAnnotator(graph_store, database=database)
 
     async def enrich_csv(
         self,
@@ -422,11 +424,7 @@ class EnrichmentOrchestrator:
             Tuple of (filtered_data, count_already_processed)
         """
         try:
-            # Get database connection
-            from src.core.database import Neo4jDatabase
-
-            db = Neo4jDatabase(database=self.database)
-
+            # Use the injected graph store
             # Determine which column to use for protein identification
             uniprot_column = metadata.get("uniprot_column")
 
@@ -437,7 +435,7 @@ class EnrichmentOrchestrator:
                 # Check by UniProt ID
                 query = "MATCH (p:Protein) WHERE p.uniprot IS NOT NULL RETURN p.uniprot as id"
 
-                results = db._execute_cypher(query)
+                results = self.db.execute_query(query)
                 existing_proteins.update(
                     result["id"] for result in results if result["id"]
                 )
@@ -457,7 +455,6 @@ class EnrichmentOrchestrator:
                     else:
                         filtered_data.append(row)
 
-                db.close()
                 return filtered_data, already_processed
 
             # Fallback: check by gene name or name
@@ -472,7 +469,7 @@ class EnrichmentOrchestrator:
             if name_column:
                 query = f"MATCH (p:Protein) WHERE p.{name_column} IS NOT NULL RETURN p.{name_column} as name"
 
-                results = db._execute_cypher(query)
+                results = self.db.execute_query(query)
                 existing_proteins.update(
                     result["name"].lower() for result in results if result["name"]
                 )
@@ -492,10 +489,7 @@ class EnrichmentOrchestrator:
                     else:
                         filtered_data.append(row)
 
-                db.close()
                 return filtered_data, already_processed
-
-            db.close()
             logger.warning(
                 "No suitable column found for resume checking - processing all rows"
             )

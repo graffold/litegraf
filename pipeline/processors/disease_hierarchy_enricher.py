@@ -6,6 +6,7 @@ Enriches disease nodes with hierarchical relationships from MONDO ontology.
 Creates parent-child relationships for generic querying (e.g., "heart disease" includes "atrial fibrillation").
 """
 
+import logging
 import os
 import re
 import sys
@@ -13,9 +14,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
+from pipeline.interfaces import GraphStore
 # Optional dependencies
 try:
     import networkx as nx
@@ -27,9 +26,7 @@ except ImportError:
     nx = None
     HAS_ONTOLOGY_DEPS = False
 
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 class DiseaseHierarchyEnricher:
     """
     Enriches disease nodes with hierarchical relationships from MONDO ontology.
@@ -40,10 +37,14 @@ class DiseaseHierarchyEnricher:
         self,
         database: str = "cvd1",
         obo_path: str | None = None,
-        db: Neo4jDatabase | None = None,
+        db: GraphStore | None = None,
     ):
         self.database = database
-        self.db = db or Neo4jDatabase(database=database)
+        if db is not None:
+            self.db = db
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
         # Default to mondo.obo in utils directory
         if obo_path is None:
@@ -66,7 +67,7 @@ class DiseaseHierarchyEnricher:
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         """Execute a Cypher query against Neo4j."""
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     def _load_mondo_ontology(self):
         """Load MONDO ontology and build mappings."""

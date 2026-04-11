@@ -7,16 +7,13 @@ No per-chunk data is retained after recording — memory footprint is constant
 regardless of corpus size.
 """
 
+import logging
 import time
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Any
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class ChunkObservation:
     """Transient struct passed to record_chunk(). Not stored after aggregation."""

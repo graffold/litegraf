@@ -3,6 +3,7 @@ Pipeline for integrating Protein-Protein Interaction (PPI) data into the knowled
 Handles the complete workflow from CSV processing to database storage.
 """
 
+import logging
 import os
 import sys
 import time
@@ -11,13 +12,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.core.ppi_database import PPIDatabaseInterface
-from src.models.ppi_models import PPIBatchData, PPINetworkStats
-from src.utils.logging_utils import setup_logging
+import importlib as _importlib
 
-logger = setup_logging()
+try:
+    _ppi_db = _importlib.import_module("src.core.ppi_database")
+    PPIDatabaseInterface = _ppi_db.PPIDatabaseInterface
+except (ImportError, ModuleNotFoundError):
+    PPIDatabaseInterface = None
 
-
+try:
+    _ppi_models = _importlib.import_module("src.models.ppi_models")
+    PPIBatchData = _ppi_models.PPIBatchData
+    PPINetworkStats = _ppi_models.PPINetworkStats
+except (ImportError, ModuleNotFoundError):
+    PPIBatchData = None
+    PPINetworkStats = None
+logger = logging.getLogger(__name__)
 class PPIIntegrationPipeline:
     """
     Complete pipeline for PPI data integration.

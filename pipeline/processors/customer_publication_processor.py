@@ -3,6 +3,7 @@ Customer Publication Processor
 Extracts and links customer study results from PDF corpus to proteins and diseases.
 """
 
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -11,12 +12,8 @@ from pipeline.processors.batch_document_processor import (
     ProcessingState,
 )
 from pipeline.processors.multimodal_processor import MultimodalProcessor
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class CustomerPublicationProcessor:
     """
     Processes customer publications (PDFs) and links them to proteins and diseases in the graph.
@@ -24,7 +21,7 @@ class CustomerPublicationProcessor:
 
     def __init__(
         self,
-        db: Neo4jDatabase,
+        db: GraphStore,
         checkpoint_db_path: str = "./checkpoints/customer_publications.db",
         max_workers: int = 4,
     ):
@@ -32,7 +29,7 @@ class CustomerPublicationProcessor:
         Initialize customer publication processor.
 
         Args:
-            db: Neo4j database connection
+            db: Graph store connection
             checkpoint_db_path: Path to SQLite checkpoint database
             max_workers: Maximum parallel workers for PDF processing
         """

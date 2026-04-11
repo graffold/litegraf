@@ -10,31 +10,32 @@ various types of biological data. Supports different enrichment types like:
 - Generic CSV enrichment (with Ensembl ID exclusion)
 """
 
+import logging
 import csv
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class EnrichmentProcessor(ABC):
     """
     Abstract base class for biological data enrichment processors.
     """
 
-    def __init__(self, database: str = "cvd1", db: Neo4jDatabase | None = None):
-        self.db = db or Neo4jDatabase(database=database)
+    def __init__(self, database: str = "cvd1", db: GraphStore | None = None):
+        if db is not None:
+            self.db = db
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query using Neo4j."""
-        return self.db._execute_cypher(query, parameters)
+        """Execute a query."""
+        return self.db.execute_query(query, parameters)
 
     @abstractmethod
     def get_enrichment_type(self) -> str:
@@ -302,12 +303,16 @@ class GenericCSVEnrichmentProcessor:
         self,
         database: str = "cvd1",
         service: str = "local",
-        db: Neo4jDatabase | None = None,
+        db: GraphStore | None = None,
         empty_threshold: float = 40.0,
         unique_threshold_percentage: float = 5.0,
     ):
         self.service = service
-        self.db = db or Neo4jDatabase(database=database)
+        if db is not None:
+            self.db = db
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
         self.uniprot_column = None  # Will be detected automatically
         self.empty_threshold = (
@@ -320,8 +325,8 @@ class GenericCSVEnrichmentProcessor:
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query using Neo4j."""
-        return self.db._execute_cypher(query, parameters or {})
+        """Execute a query."""
+        return self.db.execute_query(query, parameters or {})
 
     async def enrich_from_file(self, file_path: str) -> dict[str, Any]:
         """Enrich from a CSV file or folder of CSV files using generic logic."""

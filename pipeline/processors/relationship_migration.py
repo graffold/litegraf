@@ -6,15 +6,12 @@ Migrates from RelationshipOccurrence nodes to direct relationship edge annotatio
 and AbstractDocument nodes.
 """
 
+import logging
 import json
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class RelationshipMigration:
     """
     Utility to migrate RelationshipOccurrence nodes to the new architecture:
@@ -22,10 +19,14 @@ class RelationshipMigration:
     - AbstractDocument nodes for full text and embeddings
     """
 
-    def __init__(self, database: str = "olink", dry_run: bool = True):
+    def __init__(self, database: str = "olink", dry_run: bool = True, graph_store: GraphStore | None = None):
         self.database = database
         self.dry_run = dry_run
-        self.db = Neo4jDatabase(database=database)
+        if graph_store is not None:
+            self.db = graph_store
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
 
         logger.info(
             f"Initialized RelationshipMigration for database: {database} (dry_run: {dry_run})"
@@ -34,12 +35,12 @@ class RelationshipMigration:
     def _execute_query(
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
-        """Execute a query against Neo4j."""
+        """Execute a query against the graph store."""
         if self.dry_run:
             logger.info(f"DRY RUN - Would execute query: {query[:100]}...")
             return []
 
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     def analyze_current_structure(self) -> dict[str, Any]:
         """
@@ -420,7 +421,8 @@ def main() -> None:
     dry_run = not args.execute if args.execute else args.dry_run
 
     try:
-        migrator = RelationshipMigration(database=args.database, dry_run=dry_run)
+        from pipeline.backends.neo4j_store import Neo4jGraphStore
+        migrator = RelationshipMigration(database=args.database, dry_run=dry_run, graph_store=Neo4jGraphStore(database=args.database))
 
         print("🔍 Analyzing current RelationshipOccurrence structure...")
         analysis = migrator.analyze_current_structure()

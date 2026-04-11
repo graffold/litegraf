@@ -3,16 +3,13 @@
 Incremental consolidation strategy for running entity resolution during database population.
 """
 
+import logging
 import time
 from typing import Any
 
 from pipeline.processors.entity_resolver import EntityResolver
-from src.core.database import Neo4jDatabase
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 class IncrementalConsolidator:
     """
     Manages incremental consolidation during database population.
@@ -21,7 +18,7 @@ class IncrementalConsolidator:
 
     def __init__(
         self,
-        db: Neo4jDatabase | None = None,
+        db: GraphStore | None = None,
         chunk_threshold: int = 50,
         skip_full_resolution: bool = False,
     ):
@@ -29,11 +26,15 @@ class IncrementalConsolidator:
         Initialize incremental consolidator.
 
         Args:
-            db: Neo4j database connection
+            db: Graph store connection
             chunk_threshold: Run consolidation every N chunks
             skip_full_resolution: Skip full entity resolution (UniProt mapping, etc.) in final consolidation
         """
-        self.db = db or Neo4jDatabase(database="cvd1")
+        if db is not None:
+            self.db = db
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database="cvd1")
         self.chunk_threshold = chunk_threshold
         self.skip_full_resolution = skip_full_resolution
         self.chunks_processed = 0
@@ -77,7 +78,7 @@ class IncrementalConsolidator:
     def _run_consolidation(self) -> dict[str, Any]:
         """Run lightweight consolidation."""
         try:
-            resolver = EntityResolver(db=self.db)
+            resolver = EntityResolver(graph_store=self.db)
 
             # Run only name-based consolidation (faster)
             stats = resolver.consolidate_entities_by_name(dry_run=False)
@@ -98,7 +99,7 @@ class IncrementalConsolidator:
         logger.info("Running final comprehensive consolidation")
 
         try:
-            resolver = EntityResolver(db=self.db)
+            resolver = EntityResolver(graph_store=self.db)
 
             if self.skip_full_resolution:
                 # Only run name-based consolidation (skip UniProt mapping + full resolution)
@@ -120,7 +121,8 @@ def integrate_with_ingestion_pipeline():
     """
     Example of how to integrate with the ingestion pipeline.
     """
-    db = Neo4jDatabase(database="cvd1")
+    from pipeline.backends.neo4j_store import Neo4jGraphStore
+    db = Neo4jGraphStore(database="cvd1")
     consolidator = IncrementalConsolidator(db=db, chunk_threshold=25)
 
     # In your ingestion loop:

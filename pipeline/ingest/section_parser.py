@@ -1,13 +1,10 @@
 """Section parser for identifying and labeling logical sections of scientific papers."""
 
+import logging
 import re
 from dataclasses import dataclass
 
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging(name=__name__)
-
-
+logger = logging.getLogger(__name__)
 @dataclass
 class PaperSection:
     """A labeled section of a scientific paper."""

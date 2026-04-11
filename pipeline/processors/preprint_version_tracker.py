@@ -4,19 +4,16 @@ import logging
 from datetime import datetime
 
 from pipeline.ingest.preprint_fetcher import PreprintMetadata
-from src.core.database import Neo4jDatabase
-
+from pipeline.interfaces import GraphStore
 logger = logging.getLogger(__name__)
-
-
 class PreprintVersionTracker:
     """Track preprint versions and link to published papers."""
 
-    def __init__(self, db: Neo4jDatabase):
+    def __init__(self, db: GraphStore):
         """Initialize version tracker.
 
         Args:
-            db: Neo4j database connection
+            db: Graph store connection
         """
         self.db = db
 
@@ -64,7 +61,7 @@ class PreprintVersionTracker:
         }
 
         try:
-            self.db._execute_cypher(query, params)
+            self.db.execute_query(query, params)
             logger.info(
                 f"Stored preprint version {metadata.version} for DOI {metadata.doi}"
             )
@@ -118,7 +115,7 @@ class PreprintVersionTracker:
             }
 
         try:
-            self.db._execute_cypher(query, params)
+            self.db.execute_query(query, params)
             logger.info(
                 f"Linked preprint {preprint_doi} to publication (PMID: {pmid}, DOI: {published_doi})"
             )
@@ -165,7 +162,7 @@ class PreprintVersionTracker:
         """
 
         try:
-            result = self.db._execute_cypher(query, {"doi": doi})
+            result = self.db.execute_query(query, {"doi": doi})
             return [dict(record) for record in result]
         except Exception as e:
             logger.error(f"Failed to get version history for {doi}: {e}")
@@ -186,7 +183,7 @@ class PreprintVersionTracker:
         """
 
         try:
-            result = self.db._execute_cypher(query, {"doi": doi})
+            result = self.db.execute_query(query, {"doi": doi})
             record = result.single()
             if record:
                 return {

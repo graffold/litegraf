@@ -4,6 +4,7 @@ Uses Llama-3.2-11B-Vision-Instruct via AWS Bedrock to analyze protein diagrams,
 pathway charts, and other biomedical images.
 """
 
+import logging
 import base64
 import json
 from typing import Any
@@ -12,12 +13,8 @@ from pipeline.processors.multimodal_processor import (
     MultimodalDocument,
     MultimodalProcessor,
 )
-from src.config import Config
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.config import PipelineConfig as Config
+logger = logging.getLogger(__name__)
 class VisionProcessor:
     """
     Processes biomedical images using vision-language models.

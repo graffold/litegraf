@@ -4,6 +4,7 @@ Handles parallel processing of multiple PDF documents with checkpoint/resume cap
 Integrates with multimodal processors for vision and table extraction.
 """
 
+import logging
 import hashlib
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -17,12 +18,8 @@ from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.processors.multimodal_processor import MultimodalProcessor
 from pipeline.processors.table_processor import TableProcessor
 from pipeline.processors.vision_processor import VisionProcessor
-from src.config import Config
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.config import PipelineConfig as Config
+logger = logging.getLogger(__name__)
 class ProcessingState(Enum):
     """State of document processing."""
 

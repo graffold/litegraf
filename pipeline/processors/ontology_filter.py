@@ -1,3 +1,4 @@
+import logging
 import argparse
 import csv
 import os
@@ -5,11 +6,8 @@ from typing import Any
 
 from obonet import read_obo
 
-from src.core.database import Neo4jDatabase
-from src.utils import logging_utils
-
-logger = logging_utils.setup_logging()
-
+from pipeline.interfaces import GraphStore
+logger = logging.getLogger(__name__)
 # Fallback dictionary-based ontology
 FALLBACK_ONTOLOGY = {
     "cvd": "Cardiovascular Disease",
@@ -107,7 +105,7 @@ class OntologyFilter:
         if hasattr(self, "backend_adapter") and self.backend_adapter is not None:
             return self.backend_adapter.execute_query(query, parameters)
         if hasattr(self, "db") and self.db is not None:
-            return self.db._execute_cypher(query, parameters)
+            return self.db.execute_query(query, parameters)
         raise ValueError(
             "No database connection available. Call resolve_and_label_nodes with appropriate backend parameters first."
         )
@@ -629,7 +627,8 @@ def main():
     args = parser.parse_args()
 
     try:
-        db = Neo4jDatabase(
+        from pipeline.backends.neo4j_store import Neo4jGraphStore
+        db = Neo4jGraphStore(
             uri=args.uri, user=args.user, password=args.password, database=args.database
         )
 

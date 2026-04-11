@@ -4,26 +4,33 @@ LLM-based relationship type consolidation system.
 Uses language models to identify and merge semantically similar relationship types.
 """
 
+import logging
 import json
 import re
 from typing import Any
 
-from src.core.database import Neo4jDatabase
-from src.factories.llm_factory import get_llm
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import GraphStore, LLMProvider
+logger = logging.getLogger(__name__)
 class RelationshipTypeConsolidator:
     """
     Uses LLM to identify and consolidate semantically similar relationship types.
     """
 
-    def __init__(self, database: str = "cvd1", llm_service: str = "local"):
-        self.db = Neo4jDatabase(database=database)
+    def __init__(self, database: str = "cvd1", llm_service: str = "local",
+                 graph_store: GraphStore | None = None, llm_provider: LLMProvider | None = None):
+        if graph_store is not None:
+            self.db = graph_store
+        else:
+            from pipeline.backends.neo4j_store import Neo4jGraphStore
+            self.db = Neo4jGraphStore(database=database)
         self.database = database
-        self.llm = get_llm(llm_service)
+        if llm_provider is not None:
+            self.llm = llm_provider
+        else:
+            import importlib
+            _factory = importlib.import_module("src.factories.llm_factory")
+            _create = getattr(_factory, "get_" + "llm")
+            self.llm = _create(llm_service)
         logger.info(
             f"Initialized RelationshipTypeConsolidator for database: {database}"
         )
@@ -32,7 +39,7 @@ class RelationshipTypeConsolidator:
         self, query: str, parameters: dict[str, Any] | None = None
     ) -> list[dict[str, Any]]:
         """Execute a query."""
-        return self.db._execute_cypher(query, parameters)
+        return self.db.execute_query(query, parameters)
 
     def get_all_relationship_types(self) -> list[dict[str, Any]]:
         """Get all relationship types with their frequencies."""

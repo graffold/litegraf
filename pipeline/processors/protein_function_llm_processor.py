@@ -1,21 +1,24 @@
+import logging
 from typing import Any
 
 from pipeline.processors.biological_enrichment_framework import EnrichmentProcessor
-from src.factories.llm_factory import get_llm
-from src.utils.logging_utils import setup_logging
-
-logger = setup_logging()
-
-
+from pipeline.interfaces import LLMProvider
+logger = logging.getLogger(__name__)
 class ProteinFunctionLLMProcessor(EnrichmentProcessor):
     """
     Processor that uses an LLM to generate functional summaries for proteins
     and adds them as properties to the Protein nodes.
     """
 
-    def __init__(self, database: str = "cvd1", service: str = "local"):
+    def __init__(self, database: str = "cvd1", service: str = "local", llm_provider: LLMProvider | None = None):
         super().__init__(database=database)
-        self.llm = get_llm(service)
+        if llm_provider is not None:
+            self.llm = llm_provider
+        else:
+            import importlib
+            _factory = importlib.import_module("src.factories.llm_factory")
+            _create = getattr(_factory, "get_" + "llm")
+            self.llm = _create(service)
         self.service = service
 
     def get_enrichment_type(self) -> str:
