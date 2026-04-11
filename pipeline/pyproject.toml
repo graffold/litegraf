@@ -1,7 +1,7 @@
 [project]
-name = "biokg-ingest"
+name = "litegraf"
 version = "0.1.0"
-description = "Knowledge graph ingestion and enrichment pipeline"
+description = "Lightweight knowledge graph ingestion and enrichment pipeline"
 requires-python = ">=3.11"
 dependencies = [
     "aiosqlite>=0.20.0",
@@ -18,10 +18,10 @@ dependencies = [
 neo4j = ["neo4j>=5.0.0"]
 bedrock = ["boto3>=1.38.0", "langchain-aws>=0.2.0"]
 redis = ["redis>=5.0.0", "hiredis>=2.3.0"]
-all = ["biokg-ingest[neo4j,bedrock,redis]"]
+all = ["litegraf[neo4j,bedrock,redis]"]
 
 [project.scripts]
-biokg-ingest = "pipeline.cli:main"
+litegraf = "pipeline.cli:main"
 
 [build-system]
 requires = ["hatchling"]

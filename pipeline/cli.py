@@ -87,7 +87,7 @@ def enrich_cmd(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Main CLI entrypoint (``biokg-ingest``)."""
-    parser = argparse.ArgumentParser(prog="biokg-ingest")
+    parser = argparse.ArgumentParser(prog="litegraf")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     # --- run subcommand ---

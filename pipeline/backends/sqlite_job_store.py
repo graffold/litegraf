@@ -16,7 +16,7 @@ import aiosqlite
 
 from pipeline.interfaces import JobStore
 
-_DEFAULT_DB_PATH = os.path.join(Path.home(), ".biokg-ingest", "jobs.db")
+_DEFAULT_DB_PATH = os.path.join(Path.home(), ".litegraf", "jobs.db")
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS jobs (
