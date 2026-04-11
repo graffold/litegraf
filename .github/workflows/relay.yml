@@ -1,0 +1,65 @@
+# Relay: staging → main
+#
+# When you push to the `staging` branch, this workflow:
+# 1. Checks out staging
+# 2. Re-authors all new commits as the GitHub App bot
+# 3. Force-pushes to main
+#
+# Your personal account only ever touches `staging` (private branch).
+# The public `main` branch only shows the bot as author/pusher.
+
+name: Relay to main
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+
+      - name: Checkout staging
+        uses: actions/checkout@v4
+        with:
+          ref: staging
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Re-author commits and push to main
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          # Configure git as the bot
+          git config user.name "graffold-bot[bot]"
+          git config user.email "graffold-bot[bot]@users.noreply.github.com"
+
+          # Rewrite all commits on staging that aren't on main
+          # to use the bot identity
+          git fetch origin main:main 2>/dev/null || true
+
+          # Find the merge base (or use root if main doesn't exist yet)
+          BASE=$(git merge-base main staging 2>/dev/null || git rev-list --max-parents=0 HEAD)
+
+          # Rewrite author/committer for commits after BASE
+          FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch -f \
+            --env-filter '
+              export GIT_AUTHOR_NAME="Graffold Team"
+              export GIT_AUTHOR_EMAIL="team@graffold.com"
+              export GIT_COMMITTER_NAME="Graffold Team"
+              export GIT_COMMITTER_EMAIL="team@graffold.com"
+            ' \
+            --tag-name-filter cat \
+            -- ${BASE}..HEAD
+
+          # Force push to main using the App token
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" HEAD:main
+
+          # Push any tags too
+          git push --tags --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" || true
