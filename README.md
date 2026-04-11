@@ -1,56 +1,126 @@
 # litegraf
 
-> **Note:** This package name is a placeholder — rename before publishing.
+A lightweight, pluggable knowledge graph ingestion pipeline. Feed it text, PDFs, or tabular data — it extracts entities and relationships using LLMs and stores them in a graph database.
 
-A pluggable knowledge-graph ingestion and enrichment pipeline for biomedical literature. Extracts entities and relationships from PubMed abstracts, bioRxiv preprints, PMC full-text articles, and tabular data, then stores them in a graph database.
+One class. Sensible defaults. Works out of the box.
+
+```python
+from pipeline import LiteGraf
+
+kg = LiteGraf()
+kg.insert("TP53 is associated with multiple cancers including breast cancer.")
+result = kg.query("What cancers are associated with TP53?")
+print(result.answer)
+```
 
 ## Features
 
-- **Abstract interfaces** for graph storage, embeddings, LLM extraction, and job persistence — swap backends without touching pipeline code
-- **Default backends** included: Neo4j, sentence-transformers, Ollama, SQLite
-- **CLI** for running ingestion and enrichment from the command line
-- **Processor plugin architecture** — add new processors without modifying core code
-- **Property-based test suite** with Hypothesis
+- **Single entry point** — `LiteGraf()` with all-defaults constructor, override only what you need
+- **Pluggable backends** — Neo4j, Ollama, sentence-transformers, SQLite out of the box; swap via string shorthands or your own classes
+- **Idempotent inserts** — content-hash deduplication, re-running is a no-op
+- **LLM response caching** — same prompt = cached response, saves tokens during development
+- **Async concurrency limiter** — caps concurrent LLM calls to prevent rate-limit explosions
+- **Sync + async API** — `insert()` / `ainsert()`, `query()` / `aquery()`
+- **`only_context` mode** — retrieve context without LLM synthesis, plug into your own prompt chains
+- **CLI** — `litegraf run` and `litegraf enrich` for command-line usage
+- **Processor plugins** — add custom processors without modifying core code
+
+## Install
+
+```bash
+pip install litegraf
+
+# With Neo4j support:
+pip install "litegraf[neo4j]"
+
+# Everything:
+pip install "litegraf[all]"
+```
 
 ## Quick Start
 
-```bash
-pip install .
-# or with Neo4j support:
-pip install ".[neo4j]"
+```python
+from pipeline import LiteGraf
+
+# All defaults — Neo4j + Ollama + sentence-transformers + SQLite
+kg = LiteGraf()
+kg.insert("Interleukin-6 is elevated in inflammatory diseases.")
+result = kg.query("What role does IL-6 play in disease?")
+print(result.answer)
 ```
 
-### CLI Usage
-
-```bash
-# Run ingestion pipeline
-biokg-ingest run --query "TP53 cancer" --max-results 10 --graph-uri bolt://localhost:7687
-
-# Run enrichment pipeline
-biokg-ingest enrich --file data.csv --graph-uri bolt://localhost:7687
-
-# Load config from YAML
-biokg-ingest run --query "BRCA1" --config config.yaml
-```
-
-### Python API
+### Custom backends
 
 ```python
-from pipeline.interfaces import GraphStore, EmbeddingProvider, LLMProvider
-from pipeline.backends import Neo4jGraphStore, LocalEmbeddingProvider, OllamaLLMProvider
-from pipeline.ingest.kg_pipeline import KGPipeline
-
-graph = Neo4jGraphStore(uri="bolt://localhost:7687", auth=("neo4j", "pass"))
-embedder = LocalEmbeddingProvider()  # all-mpnet-base-v2, 768 dims
-llm = OllamaLLMProvider()           # llama3 on localhost:11434
-
-pipeline = KGPipeline(graph, embedder, llm)
-await pipeline.run(search_term="TP53 cancer", max_results=5)
+kg = LiteGraf(
+    graph_store="neo4j",
+    graph_uri="bolt://localhost:7687",
+    llm="ollama",
+    llm_model="llama3",
+    embedding_model="all-mpnet-base-v2",
+    chunk_token_size=512,
+)
 ```
 
-### Custom Backends
+### Async batch insert
 
-Implement any of the four interfaces to plug in your own backend:
+```python
+import asyncio
+
+async def main():
+    kg = LiteGraf(max_async_calls=8)
+    result = await kg.ainsert([
+        "BRCA1 mutations increase breast cancer risk.",
+        "Metformin is used to treat type 2 diabetes.",
+    ])
+    print(f"{result.chunks_processed} chunks, {result.entities_extracted} entities")
+
+asyncio.run(main())
+```
+
+### Context-only retrieval
+
+```python
+context = kg.query("What proteins relate to heart disease?", only_context=True)
+# context.answer is None — just the retrieved chunks
+for chunk in context.context:
+    print(f"[{chunk.score:.2f}] {chunk.text[:100]}...")
+```
+
+### Bring your own backends
+
+```python
+from pipeline.backends.neo4j_store import Neo4jGraphStore
+from pipeline.backends.ollama_llm import OllamaLLMProvider
+
+graph = Neo4jGraphStore(uri="bolt://localhost:7687", auth=("neo4j", "pass"))
+llm = OllamaLLMProvider(model="mistral")
+kg = LiteGraf(graph_store=graph, llm=llm, enable_cache=False)
+```
+
+## CLI
+
+```bash
+litegraf run --query "TP53 cancer" --max-results 10 --graph-uri bolt://localhost:7687
+litegraf enrich --file data.csv --graph-uri bolt://localhost:7687
+litegraf run --query "BRCA1" --config config.yaml
+```
+
+## Configuration
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `graph_store` | `"neo4j"` | Graph backend (string, class, or instance) |
+| `llm` | `"ollama"` | LLM backend |
+| `embedding` | `"local"` | Embedding backend |
+| `chunk_token_size` | `512` | Tokens per chunk |
+| `enable_cache` | `True` | Cache LLM responses to disk |
+| `enable_dedup` | `True` | Skip duplicate content on insert |
+| `max_async_calls` | `16` | Max concurrent LLM calls |
+
+## Custom Backends
+
+Implement any of the four interfaces:
 
 ```python
 from pipeline.interfaces import GraphStore
@@ -60,77 +130,20 @@ class MyGraphStore(GraphStore):
     def upsert_node(self, label, properties): ...
     def upsert_relationship(self, source_id, rel_type, target_id, properties=None): ...
     def close(self): ...
-```
 
-## Configuration
-
-### Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `NEO4J_URI` | `bolt://localhost:7687` | Neo4j connection URI |
-| `NEO4J_USER` | `neo4j` | Neo4j username |
-| `NEO4J_PASSWORD` | `password` | Neo4j password |
-| `NEO4J_DATABASE` | `neo4j` | Neo4j database name |
-| `ENTREZ_EMAIL` | | Email for NCBI Entrez API |
-| `ENTREZ_API_KEY` | | API key for NCBI Entrez |
-
-### YAML Config
-
-```yaml
-graph_uri: "bolt://localhost:7687"
-graph_user: "neo4j"
-graph_password: "password"
-graph_database: "neo4j"
-embedding_model: "all-mpnet-base-v2"
-llm_model: "llama3"
-llm_url: "http://localhost:11434"
-```
-
-## Package Structure
-
-```
-pipeline/
-├── interfaces.py          # GraphStore, EmbeddingProvider, LLMProvider, JobStore
-├── config.py              # Environment-based configuration
-├── cli.py                 # CLI entrypoints
-├── backends/              # Default backend implementations
-│   ├── neo4j_store.py     # Neo4jGraphStore (optional neo4j dep)
-│   ├── local_embeddings.py # LocalEmbeddingProvider (sentence-transformers)
-│   ├── ollama_llm.py      # OllamaLLMProvider
-│   └── sqlite_job_store.py # SQLiteJobStore
-├── ingest/                # Ingestion pipeline modules
-├── enrichment/            # Enrichment pipeline modules
-├── processors/            # Pluggable processor modules
-└── utils/                 # Standalone utilities
-```
-
-## Optional Dependencies
-
-```bash
-pip install ".[neo4j]"    # Neo4j driver
-pip install ".[bedrock]"  # AWS Bedrock SDK
-pip install ".[redis]"    # Redis client
-pip install ".[all]"      # Everything
+kg = LiteGraf(graph_store=MyGraphStore())
 ```
 
 ## Development
 
 ```bash
-# Install dev dependencies
+git clone https://github.com/graffold/litegraf.git
+cd litegraf
 pip install -e ".[all]"
-pip install pytest hypothesis pytest-asyncio
-
-# Run tests
 pytest tests/ -m "not integration"
-
-# Run property-based tests
-pytest tests/properties/ -m properties
-
-# Lint
 ruff check pipeline/
 ```
 
 ## License
 
-MIT
+[AGPL-3.0-only](LICENSE) — free to use, modify, and distribute. If you modify it or use it in a network service, you must make your source code available under the same license.
