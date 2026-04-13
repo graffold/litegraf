@@ -3,10 +3,10 @@
   "sessionId": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
   "status": "running",
   "startedAt": "2026-04-13T13:16:14.514Z",
-  "updatedAt": "2026-04-13T13:45:37.785Z",
-  "currentIteration": 9,
+  "updatedAt": "2026-04-13T14:36:06.968Z",
+  "currentIteration": 10,
   "maxIterations": 20,
-  "tasksCompleted": 8,
+  "tasksCompleted": 9,
   "isPaused": false,
   "agentPlugin": "kiro",
   "trackerState": {
@@ -71,8 +71,8 @@
       {
         "id": "US-010",
         "title": "Insert custom KG data",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       }
     ]
   },
@@ -166,12 +166,20 @@
       "durationMs": 116268,
       "startedAt": "2026-04-13T13:40:53.032Z",
       "endedAt": "2026-04-13T13:42:49.300Z"
+    },
+    {
+      "iteration": 10,
+      "status": "completed",
+      "taskId": "US-010",
+      "taskTitle": "Insert custom KG data",
+      "taskCompleted": true,
+      "durationMs": 167417,
+      "startedAt": "2026-04-13T13:42:50.367Z",
+      "endedAt": "2026-04-13T13:45:37.784Z"
     }
   ],
   "skippedTaskIds": [],
   "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag",
-  "activeTaskIds": [
-    "US-003"
-  ],
+  "activeTaskIds": [],
   "subagentPanelVisible": false
 }

@@ -1,14 +1,15 @@
 {
   "id": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
-  "status": "running",
+  "status": "interrupted",
   "startedAt": "2026-04-13T13:16:14.502Z",
-  "updatedAt": "2026-04-13T13:42:49.364Z",
+  "updatedAt": "2026-04-13T14:35:05.009Z",
   "agentPlugin": "kiro",
   "trackerPlugin": "json",
   "prdPath": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag/prd.json",
-  "currentIteration": 9,
+  "currentIteration": 10,
   "maxIterations": 20,
   "totalTasks": 0,
-  "tasksCompleted": 8,
-  "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag"
+  "tasksCompleted": 9,
+  "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag",
+  "endedAt": "2026-04-13T14:35:05.009Z"
 }

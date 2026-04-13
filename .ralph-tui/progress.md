@@ -149,3 +149,16 @@ after each iteration and it's included in prompts for context.
   - `embed_documents()` handles empty lists gracefully but the guard `if descs` avoids unnecessary calls
   - No LLM calls needed — the method is async only because it follows the dual API pattern (sync wrapper calls `run_sync`)
 ---
+
+## 2026-04-13 - US-003
+- Verified implementation already complete from prior iteration (US-002 implemented both entity and relationship embeddings together)
+- Relationship descriptions are batch-embedded during `_store_extraction` via `embed_documents()`
+- `_ensure_relationship_vector_index()` creates `relationship_embeddings` Neo4j vector index (768-dim, cosine) on init
+- Relationship edges receive `description` and `embedding` properties via `upsert_relationship()`
+- `_search_relationship_index()` queries the vector index for global-mode retrieval
+- All acceptance criteria verified met; ruff + mypy pass clean
+- Files changed: none (already implemented)
+- **Learnings:**
+  - US-002 and US-003 were implemented together since they share the same `_store_extraction` method — the relationship embedding code was added alongside entity embedding code
+  - `queryRelationships` is the Neo4j procedure for vector search on relationship properties (vs `queryNodes` for node properties)
+---
