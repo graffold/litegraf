@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>litegraf Benchmark Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+.subtitle { color: var(--muted); margin-bottom: 2rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; }
+.card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
+canvas { width: 100% !important; max-height: 350px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); font-weight: 600; }
+tr:hover { background: rgba(88,166,255,0.05); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; }
+.badge-ok { background: #1f6f2b; color: #7ee787; }
+.badge-err { background: #6e2d1e; color: #f85149; }
+.badge-skip { background: #3d2e00; color: #d29922; }
+#drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 2rem; text-align: center; color: var(--muted); margin-bottom: 2rem; cursor: pointer; }
+#drop-zone.dragover { border-color: var(--accent); color: var(--accent); }
+.competitor-row { background: rgba(210,153,34,0.08); }
+</style>
+</head>
+<body>
+<h1>🔬 litegraf Benchmark Dashboard</h1>
+<p class="subtitle">Biomedical NER extraction & knowledge graph construction — multi-model comparison</p>
+
+<div id="drop-zone">Drop a benchmark JSON file here, or click to load<br><small>Files from <code>src/pipeline/benchmarks/results/</code></small><input type="file" id="file-input" accept=".json" style="display:none"></div>
+
+<div id="dashboard" style="display:none">
+<div class="grid">
+  <div class="card"><h2>Extraction F1 (Exact Match)</h2><canvas id="chart-f1"></canvas></div>
+  <div class="card"><h2>Precision vs Recall</h2><canvas id="chart-pr"></canvas></div>
+  <div class="card"><h2>Latency (seconds)</h2><canvas id="chart-time"></canvas></div>
+  <div class="card"><h2>KG Build — Entities & Relationships</h2><canvas id="chart-kg"></canvas></div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+  <h2>Leaderboard</h2>
+  <table id="leaderboard">
+    <thead><tr><th>Model</th><th>Provider</th><th>Exact F1</th><th>Partial F1</th><th>Precision</th><th>Recall</th><th>Time</th><th>Status</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="card" id="kg-card" style="display:none">
+  <h2>KG Build Results</h2>
+  <table id="kg-table">
+    <thead><tr><th>Model</th><th>Nodes</th><th>Relationships</th><th>Entities</th><th>Docs/min</th><th>Errors</th></tr></thead>
+    <tbody></tbody>
+  </table>
+</div>
+</div>
+
+<script>
+const dropZone = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
+
+// Auto-load latest result if defined
+if (typeof BENCHMARK_DATA !== 'undefined') render(BENCHMARK_DATA);
+
+function handleFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => { try { render(JSON.parse(e.target.result)); } catch(err) { alert('Invalid JSON: ' + err.message); } };
+  reader.readAsText(file);
+}
+
+function render(data) {
+  document.getElementById('dashboard').style.display = 'block';
+  dropZone.style.display = 'none';
+
+  // Handle both compare_providers format and run_benchmark format
+  let models = {};
+  let kgModels = null;
+
+  if (data.models) {
+    models = data.models;
+  } else if (data.axes && data.axes.extraction && data.axes.extraction.litegraf) {
+    // run_benchmark format
+    models = { litegraf: data.axes.extraction.litegraf };
+  }
+
+  if (data.axes && data.axes['kg-build'] && data.axes['kg-build'].models) {
+    kgModels = data.axes['kg-build'].models;
+  }
+
+  // Extract leaderboard data
+  const rows = [];
+  for (const [label, m] of Object.entries(models)) {
+    if (m.skipped) { rows.push({ label, skipped: m.skipped }); continue; }
+    const exact = m.exact_match?.micro_avg || {};
+    const partial = m.partial_match?.micro_avg || {};
+    rows.push({
+      label,
+      provider: m.provider || '',
+      f1: exact.f1 || 0,
+      partialF1: partial.f1 || 0,
+      precision: exact.precision || 0,
+      recall: exact.recall || 0,
+      time: m.elapsed_sec || 0,
+      errors: m.errors || 0,
+      competitor: m.provider === 'competitor',
+    });
+  }
+  rows.sort((a, b) => (b.f1 || 0) - (a.f1 || 0));
+
+  // Leaderboard table
+  const tbody = document.querySelector('#leaderboard tbody');
+  tbody.innerHTML = rows.map(r => {
+    if (r.skipped) return `<tr><td>${r.label}</td><td colspan="6"></td><td><span class="badge badge-skip">skipped</span></td></tr>`;
+    const cls = r.competitor ? 'competitor-row' : '';
+    const badge = r.errors > 0 ? `<span class="badge badge-err">${r.errors} err</span>` : `<span class="badge badge-ok">ok</span>`;
+    return `<tr class="${cls}"><td>${r.label}</td><td>${r.provider}</td><td>${r.f1.toFixed(4)}</td><td>${r.partialF1.toFixed(4)}</td><td>${r.precision.toFixed(4)}</td><td>${r.recall.toFixed(4)}</td><td>${r.time.toFixed(1)}s</td><td>${badge}</td></tr>`;
+  }).join('');
+
+  // Charts
+  const active = rows.filter(r => !r.skipped);
+  const labels = active.map(r => r.label);
+  const colors = labels.map((_, i) => `hsl(${210 + i * 25}, 70%, 60%)`);
+
+  new Chart(document.getElementById('chart-f1'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Exact F1', data: active.map(r => r.f1), backgroundColor: colors }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 1 } } }
+  });
+
+  new Chart(document.getElementById('chart-pr'), {
+    type: 'scatter',
+    data: { datasets: active.map((r, i) => ({ label: r.label, data: [{ x: r.recall, y: r.precision }], backgroundColor: colors[i], pointRadius: 8 })) },
+    options: { responsive: true, scales: { x: { title: { display: true, text: 'Recall' }, min: 0, max: 1 }, y: { title: { display: true, text: 'Precision' }, min: 0, max: 1 } } }
+  });
+
+  new Chart(document.getElementById('chart-time'), {
+    type: 'bar',
+    data: { labels, datasets: [{ label: 'Seconds', data: active.map(r => r.time), backgroundColor: colors }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+  });
+
+  // KG Build chart
+  if (kgModels) {
+    document.getElementById('kg-card').style.display = 'block';
+    const kgRows = Object.entries(kgModels).filter(([_, v]) => !v.skipped && !v.error);
+    const kgLabels = kgRows.map(([l]) => l);
+    const kgColors = kgLabels.map((_, i) => `hsl(${140 + i * 25}, 60%, 55%)`);
+
+    new Chart(document.getElementById('chart-kg'), {
+      type: 'bar',
+      data: { labels: kgLabels, datasets: [
+        { label: 'Nodes', data: kgRows.map(([_, v]) => v.graph_nodes || 0), backgroundColor: 'rgba(88,166,255,0.7)' },
+        { label: 'Relationships', data: kgRows.map(([_, v]) => v.graph_relationships || 0), backgroundColor: 'rgba(126,231,135,0.7)' },
+      ]},
+      options: { responsive: true, scales: { y: { beginAtZero: true } } }
+    });
+
+    const kgTbody = document.querySelector('#kg-table tbody');
+    kgTbody.innerHTML = kgRows.map(([label, v]) =>
+      `<tr><td>${label}</td><td>${v.graph_nodes || 0}</td><td>${v.graph_relationships || 0}</td><td>${v.entities_extracted || 0}</td><td>${v.docs_per_minute || 0}</td><td>${v.insert_errors || 0}</td></tr>`
+    ).join('');
+  }
+}
+</script>
+</body>
+</html>

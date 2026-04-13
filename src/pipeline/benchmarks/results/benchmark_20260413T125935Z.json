@@ -1,0 +1,432 @@
+{
+  "metadata": {
+    "run_date": "2026-04-13T12:49:26.717850+00:00",
+    "graffold_version": "unknown",
+    "python_version": "3.14.3",
+    "hardware": {
+      "system": "Darwin",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_count": 10,
+      "os_version": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "ram_gb": 64,
+      "cpu_model": "Apple M1 Max"
+    },
+    "package_versions": {
+      "neo4j": "5.28.3",
+      "tiktoken": "0.12.0",
+      "orjson": "3.11.7",
+      "pydantic": "2.12.5",
+      "granian": "2.7.2"
+    },
+    "llm_model": "llama3",
+    "llm_service": "ollama",
+    "competitors": []
+  },
+  "axes": {
+    "kg-build": {
+      "dataset": "bc5cdr",
+      "num_documents": 10,
+      "models": {
+        "nova-micro": {
+          "provider": "bedrock",
+          "model": "eu.amazon.nova-micro-v1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 31.25,
+          "docs_per_minute": 19.2,
+          "entities_extracted": 138,
+          "relationships_extracted": 129,
+          "graph_nodes": 136,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.5,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.395
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.054
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.05
+            }
+          ]
+        },
+        "nova-lite": {
+          "provider": "bedrock",
+          "model": "eu.amazon.nova-lite-v1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 21.35,
+          "docs_per_minute": 28.1,
+          "entities_extracted": 134,
+          "relationships_extracted": 127,
+          "graph_nodes": 133,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.09,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.056
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.018
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            }
+          ]
+        },
+        "claude-haiku-4.5": {
+          "provider": "bedrock",
+          "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+          "region": "us-east-1",
+          "insert_duration_sec": 47.49,
+          "docs_per_minute": 12.6,
+          "entities_extracted": 147,
+          "relationships_extracted": 107,
+          "graph_nodes": 143,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.1,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.055
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.022
+            }
+          ]
+        },
+        "claude-sonnet-4": {
+          "provider": "bedrock",
+          "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",
+          "region": "us-east-1",
+          "insert_duration_sec": 87.35,
+          "docs_per_minute": 6.9,
+          "entities_extracted": 186,
+          "relationships_extracted": 144,
+          "graph_nodes": 184,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.15,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.097
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.034
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.023
+            }
+          ]
+        },
+        "deepseek-v3": {
+          "provider": "bedrock",
+          "model": "deepseek.v3-v1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 42.14,
+          "docs_per_minute": 14.2,
+          "entities_extracted": 152,
+          "relationships_extracted": 89,
+          "graph_nodes": 150,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.11,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.07
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            }
+          ]
+        },
+        "deepseek-v3.2": {
+          "provider": "bedrock",
+          "model": "deepseek.v3.2",
+          "region": "eu-north-1",
+          "insert_duration_sec": 148.08,
+          "docs_per_minute": 4.1,
+          "entities_extracted": 159,
+          "relationships_extracted": 100,
+          "graph_nodes": 158,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.11,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.068
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.018
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.019
+            }
+          ]
+        },
+        "gpt-oss-20b": {
+          "provider": "bedrock",
+          "model": "openai.gpt-oss-20b-1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 50.67,
+          "docs_per_minute": 11.8,
+          "entities_extracted": 0,
+          "relationships_extracted": 0,
+          "graph_nodes": 0,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.11,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.07
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.023
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.019
+            }
+          ]
+        },
+        "gpt-oss-120b": {
+          "provider": "bedrock",
+          "model": "openai.gpt-oss-120b-1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 57.95,
+          "docs_per_minute": 10.4,
+          "entities_extracted": 0,
+          "relationships_extracted": 0,
+          "graph_nodes": 0,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.11,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.066
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            }
+          ]
+        },
+        "qwen3-32b": {
+          "provider": "bedrock",
+          "model": "qwen.qwen3-32b-v1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 32.95,
+          "docs_per_minute": 18.2,
+          "entities_extracted": 155,
+          "relationships_extracted": 124,
+          "graph_nodes": 152,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.1,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.062
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.019
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.019
+            }
+          ]
+        },
+        "qwen3-coder-30b": {
+          "provider": "bedrock",
+          "model": "qwen.qwen3-coder-30b-a3b-v1:0",
+          "region": "eu-north-1",
+          "insert_duration_sec": 23.97,
+          "docs_per_minute": 25.0,
+          "entities_extracted": 127,
+          "relationships_extracted": 133,
+          "graph_nodes": 123,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.1,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.057
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.021
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.017
+            }
+          ]
+        },
+        "llama3.1-8b": {
+          "provider": "bedrock",
+          "model": "us.meta.llama3-1-8b-instruct-v1:0",
+          "region": "us-east-1",
+          "insert_duration_sec": 27.99,
+          "docs_per_minute": 21.4,
+          "entities_extracted": 105,
+          "relationships_extracted": 113,
+          "graph_nodes": 103,
+          "graph_relationships": 0,
+          "insert_errors": 0,
+          "query_duration_sec": 0.09,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.054
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.018
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.017
+            }
+          ]
+        },
+        "llama3.2-3b": {
+          "provider": "bedrock",
+          "model": "us.meta.llama3-2-3b-instruct-v1:0",
+          "region": "us-east-1",
+          "insert_duration_sec": 1.4,
+          "docs_per_minute": 428.3,
+          "entities_extracted": 0,
+          "relationships_extracted": 0,
+          "graph_nodes": 0,
+          "graph_relationships": 0,
+          "insert_errors": 4,
+          "query_duration_sec": 0.11,
+          "query_results": [
+            {
+              "question": "What proteins are associated with cardiovascular disease?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.067
+            },
+            {
+              "question": "Which chemicals interact with gene targets?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.02
+            },
+            {
+              "question": "What diseases share common protein biomarkers?",
+              "answer_length": 0,
+              "context_chunks": 0,
+              "duration_sec": 0.022
+            }
+          ]
+        }
+      },
+      "competitors": [],
+      "elapsed_sec": 608.533
+    }
+  }
+}

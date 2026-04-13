@@ -16,6 +16,7 @@ dependencies = [
     "neo4j-graphrag>=1.13.0",
     "langgraph>=0.4.0",
     "httpx>=0.27.0",
+    "nano-graphrag>=0.0.8.2",
 ]
 
 [project.optional-dependencies]

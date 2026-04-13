@@ -79,6 +79,13 @@ class Neo4jGraphStore(GraphStore):
         self._database = database
         self._driver: neo4j.Driver = neo4j.GraphDatabase.driver(uri, auth=auth)
 
+        # Ensure a range index on `id` for fast lookups (silences cartesian product warnings)
+        try:
+            with self._driver.session(database=self._database) as session:
+                session.run("CREATE INDEX node_id_index IF NOT EXISTS FOR (n:Entity) ON (n.id)")
+        except Exception:
+            pass  # index may already exist or DB may not support IF NOT EXISTS
+
     # -- GraphStore interface ------------------------------------------------
 
     def execute_query(

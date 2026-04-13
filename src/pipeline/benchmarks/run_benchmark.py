@@ -47,7 +47,7 @@ _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent)
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
-VALID_AXES = ("extraction", "kg-quality", "query", "throughput")
+VALID_AXES = ("extraction", "kg-quality", "kg-build", "query", "throughput")
 
 logger = logging.getLogger("benchmarks.run_benchmark")
 
@@ -634,12 +634,186 @@ def _run_throughput(competitors: list[str]) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Axis: kg-build (end-to-end graph construction + query)
+# ---------------------------------------------------------------------------
+
+
+def _run_kg_build(competitors: list[str]) -> dict[str, Any]:
+    """Build a real KG from benchmark docs using LiteGraf for each model in MODELS."""
+    from pipeline.benchmarks.datasets.loader import download_dataset, load_dataset
+    from pipeline.litegraf import LiteGraf
+
+    # Import MODELS from compare_providers
+    from pipeline.benchmarks.compare_providers import MODELS
+
+    dataset_name = os.environ.get("BENCH_DATASET", "bc5cdr")
+    max_docs = _max_docs()
+    split = os.environ.get("BENCH_SPLIT", "test")
+
+    # Check Neo4j connectivity
+    graph_uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
+    graph_user = os.environ.get("NEO4J_USER", "neo4j")
+    graph_password = os.environ.get("NEO4J_PASSWORD", "password")
+    graph_database = os.environ.get("NEO4J_DATABASE", "litegrafbench")
+
+    try:
+        from neo4j import GraphDatabase
+        driver = GraphDatabase.driver(graph_uri, auth=(graph_user, graph_password))
+        driver.verify_connectivity()
+        driver.close()
+    except Exception as e:
+        return {"skipped": f"Neo4j not reachable at {graph_uri}: {e}", "competitors": competitors}
+
+    try:
+        download_dataset(dataset_name)
+    except Exception:
+        pass
+
+    ds = load_dataset(dataset_name)
+    examples = ds.splits[split].examples[:max_docs]
+    texts = [ex.text for ex in examples]
+
+    results: dict[str, Any] = {
+        "dataset": dataset_name,
+        "num_documents": len(texts),
+        "models": {},
+        "competitors": competitors,
+    }
+
+    sample_questions = [
+        "What proteins are associated with cardiovascular disease?",
+        "Which chemicals interact with gene targets?",
+        "What diseases share common protein biomarkers?",
+    ]
+
+    for entry in MODELS:
+        label = entry["label"]
+        provider = entry["provider"]
+        model = entry["model"]
+        region = entry.get("region", "eu-north-1")
+
+        # Only bedrock and ollama are supported as LiteGraf LLM backends
+        if provider not in ("bedrock", "ollama"):
+            logger.info("kg-build: SKIP %s (provider %s not supported)", label, provider)
+            results["models"][label] = {"skipped": f"provider '{provider}' not wired for LiteGraf"}
+            continue
+
+        logger.info("kg-build: === %s (%s/%s) ===", label, provider, model)
+
+        # Clear the graph between models
+        try:
+            from neo4j import GraphDatabase as _GD
+            _drv = _GD.driver(graph_uri, auth=(graph_user, graph_password))
+            with _drv.session(database=graph_database) as sess:
+                sess.run("MATCH (n) DETACH DELETE n")
+            _drv.close()
+        except Exception as e:
+            logger.warning("kg-build: failed to clear graph: %s", e)
+
+        # Build LiteGraf with this model
+        llm_kwargs: dict[str, Any] = {"model": model}
+        if provider == "bedrock":
+            llm_kwargs["region_name"] = region
+        elif provider == "ollama":
+            llm_kwargs["base_url"] = os.environ.get("BENCH_LLM_URL", "http://localhost:11434")
+
+        try:
+            lg = LiteGraf(
+                graph_store="neo4j",
+                graph_uri=graph_uri,
+                graph_user=graph_user,
+                graph_password=graph_password,
+                graph_database=graph_database,
+                llm=provider,
+                llm_model=model,
+                llm_url=llm_kwargs.get("base_url", "http://localhost:11434"),
+                enable_dedup=False,
+            )
+            # Override the LLM with region-aware Bedrock provider if needed
+            if provider == "bedrock":
+                from pipeline.backends.bedrock_llm import BedrockLLMProvider
+                lg._llm = BedrockLLMProvider(model=model, region_name=region)
+        except Exception as e:
+            logger.warning("kg-build: failed to init LiteGraf for %s: %s", label, e)
+            results["models"][label] = {"error": str(e)}
+            continue
+
+        # Insert docs
+        t0 = time.monotonic()
+        total_entities = 0
+        total_rels = 0
+        errors = 0
+
+        for i, text in enumerate(texts):
+            try:
+                res = lg.insert(text)
+                total_entities += res.entities_extracted
+                total_rels += res.relationships_extracted
+            except Exception as e:
+                errors += 1
+                if errors <= 2:
+                    logger.warning("  ERR doc %d: %s", i, str(e)[:80])
+            if errors > max(3, len(texts) // 3):
+                logger.warning("  BAIL — too many errors for %s", label)
+                break
+
+        insert_duration = time.monotonic() - t0
+
+        # Query
+        query_results: list[dict[str, Any]] = []
+        t1 = time.monotonic()
+        for q in sample_questions:
+            try:
+                qr = lg.query(q)
+                query_results.append({
+                    "question": q,
+                    "answer_length": len(qr.answer) if qr.answer else 0,
+                    "context_chunks": len(qr.context),
+                    "duration_sec": qr.duration_seconds,
+                })
+            except Exception as e:
+                query_results.append({"question": q, "error": str(e)})
+        query_duration = time.monotonic() - t1
+
+        # Graph stats
+        try:
+            node_count = lg._graph.execute_query("MATCH (n) RETURN count(n) AS c")[0]["c"]
+            rel_count = lg._graph.execute_query("MATCH ()-[r]->() RETURN count(r) AS c")[0]["c"]
+        except Exception:
+            node_count = total_entities
+            rel_count = total_rels
+
+        lg.close()
+
+        results["models"][label] = {
+            "provider": provider,
+            "model": model,
+            "region": region,
+            "insert_duration_sec": round(insert_duration, 2),
+            "docs_per_minute": round(len(texts) / insert_duration * 60, 1) if insert_duration > 0 else 0,
+            "entities_extracted": total_entities,
+            "relationships_extracted": total_rels,
+            "graph_nodes": node_count,
+            "graph_relationships": rel_count,
+            "insert_errors": errors,
+            "query_duration_sec": round(query_duration, 2),
+            "query_results": query_results,
+        }
+
+        print(f"  {label}: {total_entities} entities, {total_rels} rels, "
+              f"{node_count} nodes, {round(insert_duration, 1)}s, {errors} errs")
+
+    return results
+
+
+# ---------------------------------------------------------------------------
 # Axis registry
 # ---------------------------------------------------------------------------
 
 AXIS_RUNNERS: dict[str, Any] = {
     "extraction": _run_extraction,
     "kg-quality": _run_kg_quality,
+    "kg-build": _run_kg_build,
     "query": _run_query,
     "throughput": _run_throughput,
 }

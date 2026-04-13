@@ -1,0 +1,826 @@
+{
+  "metadata": {
+    "timestamp": "2026-04-13T12:30:29.562629+00:00",
+    "dataset": "bc5cdr",
+    "split": "test",
+    "num_documents": 10
+  },
+  "models": {
+    "nova-micro": {
+      "provider": "bedrock",
+      "model": "eu.amazon.nova-micro-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 10.3,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 20,
+            "fp": 16,
+            "fn": 19,
+            "precision": 0.5556,
+            "recall": 0.5128,
+            "f1": 0.5333
+          },
+          "Disease": {
+            "tp": 14,
+            "fp": 11,
+            "fn": 22,
+            "precision": 0.56,
+            "recall": 0.3889,
+            "f1": 0.459
+          }
+        },
+        "micro_avg": {
+          "tp": 34,
+          "fp": 27,
+          "fn": 41,
+          "precision": 0.5574,
+          "recall": 0.4533,
+          "f1": 0.5
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 30,
+            "fp": 7,
+            "fn": 67,
+            "precision": 0.8108,
+            "recall": 0.3093,
+            "f1": 0.4478
+          },
+          "Disease": {
+            "tp": 19,
+            "fp": 6,
+            "fn": 51,
+            "precision": 0.76,
+            "recall": 0.2714,
+            "f1": 0.4
+          }
+        },
+        "micro_avg": {
+          "tp": 49,
+          "fp": 13,
+          "fn": 118,
+          "precision": 0.7903,
+          "recall": 0.2934,
+          "f1": 0.4279
+        }
+      }
+    },
+    "nova-lite": {
+      "provider": "bedrock",
+      "model": "eu.amazon.nova-lite-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 10.1,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 27,
+            "fp": 47,
+            "fn": 12,
+            "precision": 0.3649,
+            "recall": 0.6923,
+            "f1": 0.4779
+          },
+          "Disease": {
+            "tp": 19,
+            "fp": 14,
+            "fn": 17,
+            "precision": 0.5758,
+            "recall": 0.5278,
+            "f1": 0.5507
+          }
+        },
+        "micro_avg": {
+          "tp": 46,
+          "fp": 61,
+          "fn": 29,
+          "precision": 0.4299,
+          "recall": 0.6133,
+          "f1": 0.5055
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 44,
+            "fp": 55,
+            "fn": 53,
+            "precision": 0.4444,
+            "recall": 0.4536,
+            "f1": 0.449
+          },
+          "Disease": {
+            "tp": 30,
+            "fp": 14,
+            "fn": 40,
+            "precision": 0.6818,
+            "recall": 0.4286,
+            "f1": 0.5263
+          }
+        },
+        "micro_avg": {
+          "tp": 74,
+          "fp": 69,
+          "fn": 93,
+          "precision": 0.5175,
+          "recall": 0.4431,
+          "f1": 0.4774
+        }
+      }
+    },
+    "claude-haiku-4.5": {
+      "provider": "bedrock",
+      "model": "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 0.4,
+      "errors": 3,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 39,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 36,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 75,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 97,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 70,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 167,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "claude-sonnet-4": {
+      "provider": "bedrock",
+      "model": "eu.anthropic.claude-sonnet-4-20250514-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 0.4,
+      "errors": 3,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 39,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 36,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 75,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 97,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 70,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 167,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "deepseek-v3": {
+      "provider": "bedrock",
+      "model": "deepseek.v3-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 15.1,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 28,
+            "fp": 17,
+            "fn": 11,
+            "precision": 0.6222,
+            "recall": 0.7179,
+            "f1": 0.6667
+          },
+          "Disease": {
+            "tp": 21,
+            "fp": 9,
+            "fn": 15,
+            "precision": 0.7,
+            "recall": 0.5833,
+            "f1": 0.6364
+          }
+        },
+        "micro_avg": {
+          "tp": 49,
+          "fp": 26,
+          "fn": 26,
+          "precision": 0.6533,
+          "recall": 0.6533,
+          "f1": 0.6533
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 50,
+            "fp": 8,
+            "fn": 47,
+            "precision": 0.8621,
+            "recall": 0.5155,
+            "f1": 0.6452
+          },
+          "Disease": {
+            "tp": 33,
+            "fp": 4,
+            "fn": 37,
+            "precision": 0.8919,
+            "recall": 0.4714,
+            "f1": 0.6168
+          }
+        },
+        "micro_avg": {
+          "tp": 83,
+          "fp": 12,
+          "fn": 84,
+          "precision": 0.8737,
+          "recall": 0.497,
+          "f1": 0.6336
+        }
+      }
+    },
+    "deepseek-v3.2": {
+      "provider": "bedrock",
+      "model": "deepseek.v3.2",
+      "region": "eu-north-1",
+      "elapsed_sec": 38.1,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 29,
+            "fp": 16,
+            "fn": 10,
+            "precision": 0.6444,
+            "recall": 0.7436,
+            "f1": 0.6905
+          },
+          "Disease": {
+            "tp": 18,
+            "fp": 9,
+            "fn": 18,
+            "precision": 0.6667,
+            "recall": 0.5,
+            "f1": 0.5714
+          }
+        },
+        "micro_avg": {
+          "tp": 47,
+          "fp": 25,
+          "fn": 28,
+          "precision": 0.6528,
+          "recall": 0.6267,
+          "f1": 0.6395
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 46,
+            "fp": 7,
+            "fn": 51,
+            "precision": 0.8679,
+            "recall": 0.4742,
+            "f1": 0.6133
+          },
+          "Disease": {
+            "tp": 29,
+            "fp": 0,
+            "fn": 41,
+            "precision": 1.0,
+            "recall": 0.4143,
+            "f1": 0.5859
+          }
+        },
+        "micro_avg": {
+          "tp": 75,
+          "fp": 7,
+          "fn": 92,
+          "precision": 0.9146,
+          "recall": 0.4491,
+          "f1": 0.6024
+        }
+      }
+    },
+    "gpt-oss-20b": {
+      "provider": "bedrock",
+      "model": "openai.gpt-oss-20b-1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 22.0,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 39,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 36,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 75,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 97,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 70,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 167,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "gpt-oss-120b": {
+      "provider": "bedrock",
+      "model": "openai.gpt-oss-120b-1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 15.6,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 39,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 36,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 75,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 97,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 70,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 167,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    },
+    "qwen3-32b": {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-32b-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 15.0,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 22,
+            "fp": 21,
+            "fn": 17,
+            "precision": 0.5116,
+            "recall": 0.5641,
+            "f1": 0.5366
+          },
+          "Disease": {
+            "tp": 16,
+            "fp": 16,
+            "fn": 20,
+            "precision": 0.5,
+            "recall": 0.4444,
+            "f1": 0.4706
+          }
+        },
+        "micro_avg": {
+          "tp": 38,
+          "fp": 37,
+          "fn": 37,
+          "precision": 0.5067,
+          "recall": 0.5067,
+          "f1": 0.5067
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 38,
+            "fp": 11,
+            "fn": 59,
+            "precision": 0.7755,
+            "recall": 0.3918,
+            "f1": 0.5205
+          },
+          "Disease": {
+            "tp": 26,
+            "fp": 6,
+            "fn": 44,
+            "precision": 0.8125,
+            "recall": 0.3714,
+            "f1": 0.5098
+          }
+        },
+        "micro_avg": {
+          "tp": 64,
+          "fp": 17,
+          "fn": 103,
+          "precision": 0.7901,
+          "recall": 0.3832,
+          "f1": 0.5161
+        }
+      }
+    },
+    "qwen3-coder-30b": {
+      "provider": "bedrock",
+      "model": "qwen.qwen3-coder-30b-a3b-v1:0",
+      "region": "eu-north-1",
+      "elapsed_sec": 8.1,
+      "errors": 0,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 21,
+            "fp": 19,
+            "fn": 18,
+            "precision": 0.525,
+            "recall": 0.5385,
+            "f1": 0.5316
+          },
+          "Disease": {
+            "tp": 15,
+            "fp": 18,
+            "fn": 21,
+            "precision": 0.4545,
+            "recall": 0.4167,
+            "f1": 0.4348
+          }
+        },
+        "micro_avg": {
+          "tp": 36,
+          "fp": 37,
+          "fn": 39,
+          "precision": 0.4932,
+          "recall": 0.48,
+          "f1": 0.4865
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 33,
+            "fp": 14,
+            "fn": 64,
+            "precision": 0.7021,
+            "recall": 0.3402,
+            "f1": 0.4583
+          },
+          "Disease": {
+            "tp": 26,
+            "fp": 14,
+            "fn": 44,
+            "precision": 0.65,
+            "recall": 0.3714,
+            "f1": 0.4727
+          }
+        },
+        "micro_avg": {
+          "tp": 59,
+          "fp": 28,
+          "fn": 108,
+          "precision": 0.6782,
+          "recall": 0.3533,
+          "f1": 0.4646
+        }
+      }
+    },
+    "llama3.1-8b": {
+      "provider": "bedrock",
+      "model": "us.meta.llama3-1-8b-instruct-v1:0",
+      "region": "us-east-1",
+      "elapsed_sec": 16.8,
+      "errors": 1,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 19,
+            "fp": 12,
+            "fn": 20,
+            "precision": 0.6129,
+            "recall": 0.4872,
+            "f1": 0.5429
+          },
+          "Disease": {
+            "tp": 7,
+            "fp": 7,
+            "fn": 29,
+            "precision": 0.5,
+            "recall": 0.1944,
+            "f1": 0.28
+          }
+        },
+        "micro_avg": {
+          "tp": 26,
+          "fp": 19,
+          "fn": 49,
+          "precision": 0.5778,
+          "recall": 0.3467,
+          "f1": 0.4333
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 27,
+            "fp": 5,
+            "fn": 70,
+            "precision": 0.8438,
+            "recall": 0.2784,
+            "f1": 0.4186
+          },
+          "Disease": {
+            "tp": 10,
+            "fp": 4,
+            "fn": 60,
+            "precision": 0.7143,
+            "recall": 0.1429,
+            "f1": 0.2381
+          }
+        },
+        "micro_avg": {
+          "tp": 37,
+          "fp": 9,
+          "fn": 130,
+          "precision": 0.8043,
+          "recall": 0.2216,
+          "f1": 0.3474
+        }
+      }
+    },
+    "llama3.2-3b": {
+      "provider": "bedrock",
+      "model": "eu.meta.llama3-2-3b-instruct-v1:0",
+      "region": "eu-central-1",
+      "elapsed_sec": 1.7,
+      "errors": 3,
+      "num_documents": 10,
+      "entity_types": [
+        "Chemical",
+        "Disease"
+      ],
+      "exact_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 39,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 36,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 75,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      },
+      "partial_match": {
+        "per_type": {
+          "Chemical": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 97,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          "Disease": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 70,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "micro_avg": {
+          "tp": 0,
+          "fp": 0,
+          "fn": 167,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0
+        }
+      }
+    }
+  }
+}

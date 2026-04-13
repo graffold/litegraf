@@ -44,17 +44,17 @@ MODELS: list[dict[str, Any]] = [
     {"label": "nova-micro",           "provider": "bedrock", "model": "eu.amazon.nova-micro-v1:0",              "region": "eu-north-1"},
     {"label": "nova-lite",            "provider": "bedrock", "model": "eu.amazon.nova-lite-v1:0",               "region": "eu-north-1"},
 
-    # --- Anthropic (eu-north-1) ---
-    {"label": "claude-haiku-4.5",     "provider": "bedrock", "model": "eu.anthropic.claude-haiku-4-5-20251001-v1:0", "region": "eu-north-1"},
-    {"label": "claude-sonnet-4",      "provider": "bedrock", "model": "eu.anthropic.claude-sonnet-4-20250514-v1:0",  "region": "eu-north-1"},
+    # --- Anthropic (us-east-1) ---
+    {"label": "claude-haiku-4.5",     "provider": "bedrock", "model": "us.anthropic.claude-haiku-4-5-20251001-v1:0", "region": "us-east-1"},
+    {"label": "claude-sonnet-4",      "provider": "bedrock", "model": "us.anthropic.claude-sonnet-4-20250514-v1:0",  "region": "us-east-1"},
 
     # --- DeepSeek (eu-north-1) ---
     {"label": "deepseek-v3",          "provider": "bedrock", "model": "deepseek.v3-v1:0",                   "region": "eu-north-1"},
     {"label": "deepseek-v3.2",        "provider": "bedrock", "model": "deepseek.v3.2",                      "region": "eu-north-1"},
 
     # --- MiniMax (eu-north-1) ---
-    {"label": "minimax-m2.1",         "provider": "bedrock", "model": "minimax.minimax-m2.1",               "region": "eu-north-1"},
-    {"label": "minimax-m2.5",         "provider": "bedrock", "model": "minimax.minimax-m2.5",               "region": "eu-north-1"},
+    # {"label": "minimax-m2.1",         "provider": "bedrock", "model": "minimax.minimax-m2.1",               "region": "eu-north-1"},
+    # {"label": "minimax-m2.5",         "provider": "bedrock", "model": "minimax.minimax-m2.5",               "region": "eu-north-1"},
 
     # --- OpenAI (eu-north-1) ---
     {"label": "gpt-oss-20b",          "provider": "bedrock", "model": "openai.gpt-oss-20b-1:0",             "region": "eu-north-1"},
@@ -64,8 +64,11 @@ MODELS: list[dict[str, Any]] = [
     {"label": "qwen3-32b",            "provider": "bedrock", "model": "qwen.qwen3-32b-v1:0",               "region": "eu-north-1"},
     {"label": "qwen3-coder-30b",      "provider": "bedrock", "model": "qwen.qwen3-coder-30b-a3b-v1:0",     "region": "eu-north-1"},
 
-    # --- Meta / Mistral (us-east-1, geo-dependent) ---
-    # {"label": "llama3.1-8b",        "provider": "bedrock", "model": "us.meta.llama3-1-8b-instruct-v1:0",  "region": "us-east-1"},
+    # --- Meta (geo-dependent) ---
+    {"label": "llama3.1-8b",          "provider": "bedrock", "model": "us.meta.llama3-1-8b-instruct-v1:0",  "region": "us-east-1"},
+    {"label": "llama3.2-3b",          "provider": "bedrock", "model": "us.meta.llama3-2-3b-instruct-v1:0",  "region": "us-east-1"},
+
+    # --- Mistral (us-east-1, geo-dependent) ---
     # {"label": "mistral-7b",         "provider": "bedrock", "model": "mistral.mistral-7b-instruct-v0:2",   "region": "us-east-1"},
     # {"label": "ministral-8b",       "provider": "bedrock", "model": "mistral.ministral-3-8b-instruct",    "region": "us-east-1"},
 
@@ -84,6 +87,9 @@ MODELS: list[dict[str, Any]] = [
 
 _bedrock_clients: dict[str, Any] = {}
 
+# Per-doc timeout for Bedrock calls (seconds). Keeps slow models from blocking.
+_BEDROCK_TIMEOUT = int(os.environ.get("BENCH_TIMEOUT", "60"))
+
 
 def _call_bedrock(prompt: str, model: str, region: str = "eu-north-1", **_: Any) -> str:
     import boto3
@@ -91,7 +97,7 @@ def _call_bedrock(prompt: str, model: str, region: str = "eu-north-1", **_: Any)
     if region not in _bedrock_clients:
         _bedrock_clients[region] = boto3.client(
             "bedrock-runtime", region_name=region,
-            config=Config(read_timeout=300, connect_timeout=10, retries={"max_attempts": 2}),
+            config=Config(read_timeout=_BEDROCK_TIMEOUT, connect_timeout=10, retries={"max_attempts": 0}),
         )
     resp = _bedrock_clients[region].converse(
         modelId=model,
@@ -216,8 +222,12 @@ def run_comparison(models: list[dict], max_docs: int = 10, dataset: str = "bc5cd
         predictions: list[BenchmarkExample] = []
         t0 = time.monotonic()
         errors = 0
+        max_errors = max(3, len(gold) // 3)  # bail if >1/3 docs fail
 
         for i, ex in enumerate(gold):
+            if errors >= max_errors:
+                print(f"    BAIL — {errors} errors, skipping remaining docs")
+                break
             prompt = (
                 "Extract all named entities from the following biomedical text.\n"
                 'Return a JSON array of objects with keys: "text", "entity_type".\n'
@@ -228,10 +238,19 @@ def run_comparison(models: list[dict], max_docs: int = 10, dataset: str = "bc5cd
             entities: list[Entity] = []
             try:
                 raw = call_fn(prompt, **entry)
-                m = _re.search(r"\[.*\]", raw, _re.DOTALL)
+                # Strip markdown fences
+                clean = _re.sub(r"```(?:json)?\s*", "", raw)
+                m = _re.search(r"\[.*\]", clean, _re.DOTALL)
                 if m:
-                    for item in json.loads(m.group()):
-                        entities.append(Entity(text=item.get("text", ""), entity_type=item.get("entity_type", "Entity")))
+                    json_str = m.group()
+                    # Fix trailing commas
+                    json_str = _re.sub(r",\s*([}\]])", r"\1", json_str)
+                    for item in json.loads(json_str):
+                        if isinstance(item, dict):
+                            text = item.get("text") or item.get("name") or item.get("entity") or ""
+                            etype = item.get("entity_type") or item.get("type") or item.get("label") or "Entity"
+                            if text:
+                                entities.append(Entity(text=text, entity_type=etype))
             except Exception as e:
                 errors += 1
                 if errors <= 2:
@@ -243,6 +262,25 @@ def run_comparison(models: list[dict], max_docs: int = 10, dataset: str = "bc5cd
         elapsed = time.monotonic() - t0
         metrics = evaluate_extraction(gold, predictions)
         results["models"][label] = {"provider": provider, "model": model, "region": entry.get("region", ""), "elapsed_sec": round(elapsed, 1), "errors": errors, **metrics}
+
+    # --- Competitors (if installed) ---
+    for comp_name, comp_module in [
+        ("nano-graphrag", "nano_graphrag_runner"),
+        ("lightrag", "lightrag_runner"),
+        ("ms-graphrag", "ms_graphrag_runner"),
+    ]:
+        try:
+            mod = __import__(f"pipeline.benchmarks.competitors.{comp_module}", fromlist=["is_available", "run_extraction"])
+            if mod.is_available():
+                import asyncio
+                print(f"  RUN  {comp_name} (competitor)")
+                t0 = time.monotonic()
+                comp_preds = asyncio.run(mod.run_extraction(gold))
+                elapsed = time.monotonic() - t0
+                metrics = evaluate_extraction(gold, comp_preds)
+                results["models"][comp_name] = {"provider": "competitor", "model": comp_name, "region": "", "elapsed_sec": round(elapsed, 1), "errors": 0, **metrics}
+        except Exception as e:
+            print(f"  SKIP {comp_name}: {e!s:.80}")
 
     return results
 
