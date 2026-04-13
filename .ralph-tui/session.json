@@ -1,0 +1,84 @@
+{
+  "version": 1,
+  "sessionId": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
+  "status": "running",
+  "startedAt": "2026-04-13T13:16:14.514Z",
+  "updatedAt": "2026-04-13T13:20:29.062Z",
+  "currentIteration": 0,
+  "maxIterations": 20,
+  "tasksCompleted": 0,
+  "isPaused": false,
+  "agentPlugin": "kiro",
+  "trackerState": {
+    "plugin": "json",
+    "prdPath": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag/prd.json",
+    "totalTasks": 10,
+    "tasks": [
+      {
+        "id": "US-001",
+        "title": "Multi-mode query parameter",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-002",
+        "title": "Entity description embeddings",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-003",
+        "title": "Relationship description embeddings",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-004",
+        "title": "Entity gleaning (multi-pass extraction)",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-005",
+        "title": "Entity merge/summarization on re-insert",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-006",
+        "title": "Reranker interface and injection",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-007",
+        "title": "Token budget control for context assembly",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-008",
+        "title": "Document deletion with KG cleanup",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-009",
+        "title": "Conversation history for multi-turn queries",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-010",
+        "title": "Insert custom KG data",
+        "status": "open",
+        "completedInSession": false
+      }
+    ]
+  },
+  "iterations": [],
+  "skippedTaskIds": [],
+  "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}

@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+QueryMode = Literal["naive", "local", "global", "hybrid", "mix"]
+QUERY_MODES: set[str] = {"naive", "local", "global", "hybrid", "mix"}
 
 
 @dataclass

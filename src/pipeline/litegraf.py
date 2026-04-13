@@ -21,7 +21,7 @@ from typing import Any
 from pipeline.dx.cache import LLMCache
 from pipeline.dx.dedup import ContentDeduplicator
 from pipeline.dx.limiter import RateLimitedLLMProvider
-from pipeline.dx.models import ContextChunk, InsertResult, QueryResult
+from pipeline.dx.models import QUERY_MODES, ContextChunk, InsertResult, QueryMode, QueryResult
 from pipeline.dx.registry import BackendRegistry
 from pipeline.dx.sync_utils import run_sync
 from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider
@@ -178,10 +178,12 @@ class LiteGraf:
 
     # --- Query (async) ------------------------------------------------------
 
-    async def aquery(self, question: str, *, only_context: bool = False) -> QueryResult:
+    async def aquery(self, question: str, *, only_context: bool = False, mode: QueryMode = "hybrid") -> QueryResult:
         """Query the knowledge graph (async)."""
         if not question.strip():
             raise ValueError("Question must be a non-empty string")
+        if mode not in QUERY_MODES:
+            raise ValueError(f"Unknown query mode {mode!r}, expected one of {sorted(QUERY_MODES)}")
 
         start = time.monotonic()
 
@@ -189,7 +191,7 @@ class LiteGraf:
         query_vec = self._embedder.embed_query(question)
 
         # Similarity search — use execute_query with a vector search Cypher
-        context_chunks = self._similarity_search(query_vec, top_k=10)
+        context_chunks = self._similarity_search(query_vec, top_k=10, mode=mode)
 
         answer: str | None = None
         if not only_context and context_chunks:
@@ -215,9 +217,9 @@ class LiteGraf:
         """Insert text content into the knowledge graph (sync wrapper)."""
         return run_sync(self.ainsert(content))
 
-    def query(self, question: str, *, only_context: bool = False) -> QueryResult:
+    def query(self, question: str, *, only_context: bool = False, mode: QueryMode = "hybrid") -> QueryResult:
         """Query the knowledge graph (sync wrapper)."""
-        return run_sync(self.aquery(question, only_context=only_context))
+        return run_sync(self.aquery(question, only_context=only_context, mode=mode))
 
     # --- Lifecycle ----------------------------------------------------------
 
@@ -297,10 +299,12 @@ class LiteGraf:
                 )
 
     def _similarity_search(
-        self, query_vec: list[float], top_k: int = 10
+        self, query_vec: list[float], top_k: int = 10, *, mode: QueryMode = "hybrid"
     ) -> list[ContextChunk]:
         """Search the graph for chunks similar to the query vector."""
-        # Try vector index search via Cypher (Neo4j 5.x+ with vector indexes)
+        # naive mode: chunk embeddings only (current behavior)
+        # local/global/hybrid/mix: will be expanded in US-002/US-003;
+        # for now all modes fall back to chunk-based search.
         try:
             results = self._graph.execute_query(
                 "CALL db.index.vector.queryNodes('chunk_embeddings', $top_k, $vec) "

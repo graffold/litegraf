@@ -1,0 +1,14 @@
+{
+  "id": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
+  "status": "running",
+  "startedAt": "2026-04-13T13:16:14.502Z",
+  "updatedAt": "2026-04-13T13:16:14.502Z",
+  "agentPlugin": "kiro",
+  "trackerPlugin": "json",
+  "prdPath": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag/prd.json",
+  "currentIteration": 0,
+  "maxIterations": 20,
+  "totalTasks": 0,
+  "tasksCompleted": 0,
+  "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag"
+}
