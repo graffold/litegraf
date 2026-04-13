@@ -23,7 +23,7 @@ import tiktoken
 from pipeline.dx.cache import LLMCache
 from pipeline.dx.dedup import ContentDeduplicator
 from pipeline.dx.limiter import RateLimitedLLMProvider
-from pipeline.dx.models import QUERY_MODES, ContextChunk, DeleteResult, InsertResult, QueryMode, QueryResult
+from pipeline.dx.models import QUERY_MODES, ContextChunk, DeleteResult, InsertKGResult, InsertResult, QueryMode, QueryResult
 from pipeline.dx.registry import BackendRegistry
 from pipeline.dx.sync_utils import run_sync
 from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
@@ -335,6 +335,85 @@ class LiteGraf:
             relationships_removed=rels_removed,
         )
 
+    # --- Insert KG (async) --------------------------------------------------
+
+    async def ainsert_kg(
+        self,
+        entities: list[dict[str, Any]] | None = None,
+        relationships: list[dict[str, Any]] | None = None,
+    ) -> InsertKGResult:
+        """Insert pre-extracted entities and relationships directly (async).
+
+        No LLM calls are made.  Entities are deduplicated by (name, type).
+        Each entity/relationship is embedded and upserted into the graph.
+        """
+        start = time.monotonic()
+        entities = entities or []
+        relationships = relationships or []
+
+        # Dedup entities by (name, type)
+        seen_ents: set[tuple[str, str]] = set()
+        unique_entities: list[dict[str, Any]] = []
+        for e in entities:
+            name = e.get("name", "").strip()
+            etype = e.get("type", "Entity").strip()
+            ent_key: tuple[str, str] = (name.lower(), etype.lower())
+            if not name or ent_key in seen_ents:
+                continue
+            seen_ents.add(ent_key)
+            unique_entities.append(e)
+
+        # Embed and upsert entities
+        descs = [e.get("description", "") or "" for e in unique_entities]
+        ent_embeddings = self._embedder.embed_documents(descs) if descs else []
+        for i, e in enumerate(unique_entities):
+            label = e.get("type", "Entity").strip()
+            name = e.get("name", "").strip()
+            props: dict[str, Any] = {"id": f"{label}:{name}", "name": name}
+            desc = e.get("description", "")
+            if desc:
+                props["description"] = desc
+            if i < len(ent_embeddings):
+                props["embedding"] = ent_embeddings[i]
+            self._graph.upsert_node(label, props)
+
+        # Dedup relationships by (source, target, type)
+        seen_rels: set[tuple[str, str, str]] = set()
+        unique_rels: list[dict[str, Any]] = []
+        for r in relationships:
+            src = r.get("source", "").strip()
+            tgt = r.get("target", "").strip()
+            rtype = r.get("type", "RELATED_TO").strip()
+            rel_key: tuple[str, str, str] = (src.lower(), tgt.lower(), rtype.lower())
+            if not (src and tgt) or rel_key in seen_rels:
+                continue
+            seen_rels.add(rel_key)
+            unique_rels.append(r)
+
+        # Embed and upsert relationships
+        rel_descs = [r.get("description", "") or "" for r in unique_rels]
+        rel_embeddings = self._embedder.embed_documents(rel_descs) if rel_descs else []
+        for i, r in enumerate(unique_rels):
+            src = r.get("source", "").strip()
+            tgt = r.get("target", "").strip()
+            rtype = r.get("type", "RELATED_TO").strip()
+            rel_props: dict[str, Any] = {}
+            desc = r.get("description", "")
+            if desc:
+                rel_props["description"] = desc
+            if i < len(rel_embeddings):
+                rel_props["embedding"] = rel_embeddings[i]
+            self._graph.upsert_relationship(
+                f"Entity:{src}", rtype, f"Entity:{tgt}", rel_props
+            )
+
+        duration = time.monotonic() - start
+        return InsertKGResult(
+            entities_upserted=len(unique_entities),
+            relationships_upserted=len(unique_rels),
+            duration_seconds=round(duration, 3),
+        )
+
     # --- Sync wrappers ------------------------------------------------------
 
     def insert(self, content: str | list[str]) -> InsertResult:
@@ -344,6 +423,14 @@ class LiteGraf:
     def delete(self, doc_id: str) -> DeleteResult:
         """Delete a document and clean up its KG data (sync wrapper)."""
         return run_sync(self.adelete(doc_id))
+
+    def insert_kg(
+        self,
+        entities: list[dict[str, Any]] | None = None,
+        relationships: list[dict[str, Any]] | None = None,
+    ) -> InsertKGResult:
+        """Insert pre-extracted entities and relationships directly (sync wrapper)."""
+        return run_sync(self.ainsert_kg(entities=entities, relationships=relationships))
 
     def query(
         self,

@@ -42,6 +42,15 @@ class DeleteResult:
 
 
 @dataclass
+class InsertKGResult:
+    """Result of an insert_kg operation (pre-extracted entities/relationships)."""
+
+    entities_upserted: int
+    relationships_upserted: int
+    duration_seconds: float
+
+
+@dataclass
 class QueryResult:
     """Result of a query operation."""
 

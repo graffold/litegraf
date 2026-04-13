@@ -135,3 +135,17 @@ after each iteration and it's included in prompts for context.
   - No new types or exports needed — the history format is a plain `list[dict[str, str]]` matching the standard `{"role": "...", "content": "..."}` convention
   - Pre-existing mypy failures: missing `sentence_transformers`, `neo4j`, `aiosqlite`, `nest_asyncio`, `ollama` stubs — not related to this change
 ---
+
+## 2026-04-13 - US-010
+- Added `InsertKGResult` dataclass to `src/pipeline/dx/models.py` with `entities_upserted`, `relationships_upserted`, `duration_seconds`
+- Added `ainsert_kg(entities, relationships)` async method to `LiteGraf` — upserts pre-extracted entities and relationships with embeddings, no LLM calls
+- Added `insert_kg()` sync wrapper following the existing `run_sync()` pattern
+- Dedup applies within the input batch: entities by `(name.lower(), type.lower())`, relationships by `(source.lower(), target.lower(), type.lower())`
+- Graph-level dedup via `upsert_node` MERGE semantics — duplicate entities across calls are merged automatically
+- Exported `InsertKGResult` from `src/pipeline/__init__.py`
+- Files changed: `src/pipeline/dx/models.py`, `src/pipeline/litegraf.py`, `src/pipeline/__init__.py`
+- **Learnings:**
+  - When `dict[str, Any]` values go through `.get().strip().lower()`, mypy infers `Any` for the result — explicit tuple type annotations (`ent_key: tuple[str, str]`) are needed to avoid type errors when reusing variable names across loops
+  - `embed_documents()` handles empty lists gracefully but the guard `if descs` avoids unnecessary calls
+  - No LLM calls needed — the method is async only because it follows the dual API pattern (sync wrapper calls `run_sync`)
+---
