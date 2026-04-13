@@ -26,3 +26,20 @@ after each iteration and it's included in prompts for context.
   - Existing test suite has pre-existing failures: missing `pytest-asyncio` for async tests, missing `neo4j` for backend resolution tests — not related to this change
   - `_similarity_search` is the retrieval entry point — this is where mode-specific routing will be added when entity/relationship embeddings land
 ---
+
+## 2026-04-13 - US-002
+- Implemented entity description embeddings during insert
+- Updated extraction prompt to request `{name, type, description}` for entities
+- `_store_extraction` now batch-embeds entity descriptions via `embed_documents()` and stores `description` + `embedding` properties on entity nodes
+- Added `_ensure_entity_vector_index()` — creates `entity_embeddings` Neo4j vector index (768-dim, cosine) on init
+- Implemented `_search_entity_index()` for querying the entity_embeddings index
+- Refactored `_similarity_search()` into mode-aware routing: naive→chunks, local/hybrid→entities, mix→all
+- Added `_search_chunk_index()` extracted from old monolithic method
+- Incremental: re-inserting content that produces the same entity will upsert (MERGE) the node with updated description/embedding
+- Files changed: `src/pipeline/litegraf.py`
+- **Learnings:**
+  - `upsert_node` uses MERGE on `id` property then `SET n += $props` — so adding `description` and `embedding` to props automatically handles incremental updates
+  - Batch embedding via `embed_documents()` is more efficient than per-entity `embed_query()`
+  - The vector index CREATE uses `IF NOT EXISTS` so it's safe to call on every init
+  - Pre-existing test failures: missing `neo4j`, `pytest-asyncio`, `hypothesis` packages — not related to this change
+---

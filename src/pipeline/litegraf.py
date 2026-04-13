@@ -116,6 +116,9 @@ class LiteGraf:
         # Dedup
         self._dedup = ContentDeduplicator(working_dir=self.working_dir)
 
+        # Ensure entity_embeddings vector index exists
+        self._ensure_entity_vector_index()
+
         logger.info(
             "LiteGraf initialized (graph=%s, llm=%s, embedding=%s)",
             self.graph_store,
@@ -243,6 +246,17 @@ class LiteGraf:
 
     # --- Internal helpers ---------------------------------------------------
 
+    def _ensure_entity_vector_index(self) -> None:
+        """Create the entity_embeddings vector index if it doesn't exist."""
+        try:
+            self._graph.execute_query(
+                "CREATE VECTOR INDEX entity_embeddings IF NOT EXISTS "
+                "FOR (n:Entity) ON (n.embedding) "
+                "OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}"
+            )
+        except Exception:
+            logger.debug("Could not create entity_embeddings index (may already exist or DB unavailable)")
+
     def _chunk_text(self, text: str, doc_id: str) -> list[tuple[str, str]]:
         """Split text into chunks. Returns list of (chunk_id, chunk_text)."""
         # Simple token-approximate chunking by character count
@@ -266,8 +280,9 @@ class LiteGraf:
         prompt = (
             "Extract all entities (people, organizations, concepts, proteins, diseases, etc.) "
             "and relationships from the following text. "
-            "Return valid JSON with 'entities' (list of {name, type}) and "
-            "'relationships' (list of {source, target, type})."
+            "Return valid JSON with 'entities' (list of {name, type, description}) and "
+            "'relationships' (list of {source, target, type, description}). "
+            "Each 'description' should be a concise summary of the entity or relationship."
         )
         return await self._llm.extract(prompt, chunk_text)
 
@@ -278,13 +293,36 @@ class LiteGraf:
         rels: list[dict[str, Any]],
     ) -> None:
         """Upsert extracted entities and relationships into the graph store."""
-        for node in nodes:
+        # Embed entity descriptions in batch
+        descriptions = []
+        entity_indices: list[int] = []
+        for i, node in enumerate(nodes):
+            desc = node.get("description", "")
+            if node.get("name") and desc:
+                descriptions.append(desc)
+                entity_indices.append(i)
+
+        embeddings: list[list[float]] = []
+        if descriptions:
+            embeddings = self._embedder.embed_documents(descriptions)
+
+        emb_map: dict[int, list[float]] = dict(zip(entity_indices, embeddings))
+
+        for i, node in enumerate(nodes):
             label = node.get("type", "Entity")
             name = node.get("name", "")
             if name:
-                self._graph.upsert_node(
-                    label, {"id": f"{label}:{name}", "name": name, "chunk_id": chunk_id}
-                )
+                props: dict[str, Any] = {
+                    "id": f"{label}:{name}",
+                    "name": name,
+                    "chunk_id": chunk_id,
+                }
+                desc = node.get("description", "")
+                if desc:
+                    props["description"] = desc
+                if i in emb_map:
+                    props["embedding"] = emb_map[i]
+                self._graph.upsert_node(label, props)
 
         for rel in rels:
             source = rel.get("source", "")
@@ -302,9 +340,33 @@ class LiteGraf:
         self, query_vec: list[float], top_k: int = 10, *, mode: QueryMode = "hybrid"
     ) -> list[ContextChunk]:
         """Search the graph for chunks similar to the query vector."""
-        # naive mode: chunk embeddings only (current behavior)
-        # local/global/hybrid/mix: will be expanded in US-002/US-003;
-        # for now all modes fall back to chunk-based search.
+        chunks: list[ContextChunk] = []
+
+        # Chunk-based search (used by naive, mix)
+        if mode in ("naive", "mix"):
+            chunks.extend(self._search_chunk_index(query_vec, top_k))
+
+        # Entity-based search (used by local, hybrid, mix)
+        if mode in ("local", "hybrid", "mix"):
+            chunks.extend(self._search_entity_index(query_vec, top_k))
+
+        if not chunks:
+            # Fallback: try chunk search for any mode
+            chunks = self._search_chunk_index(query_vec, top_k)
+
+        # Deduplicate by chunk_id, keep highest score
+        seen: dict[str, ContextChunk] = {}
+        for c in chunks:
+            key = c.chunk_id or c.text[:100]
+            if key not in seen or c.score > seen[key].score:
+                seen[key] = c
+        result = sorted(seen.values(), key=lambda c: c.score, reverse=True)
+        return result[:top_k]
+
+    def _search_chunk_index(
+        self, query_vec: list[float], top_k: int
+    ) -> list[ContextChunk]:
+        """Search the chunk_embeddings vector index."""
         try:
             results = self._graph.execute_query(
                 "CALL db.index.vector.queryNodes('chunk_embeddings', $top_k, $vec) "
@@ -324,7 +386,32 @@ class LiteGraf:
                 if r.get("text")
             ]
         except Exception:
-            logger.debug("Vector search not available, falling back to text search")
+            logger.debug("chunk_embeddings index not available")
+            return []
 
-        # Fallback: return empty (graph may not have vector indexes)
-        return []
+    def _search_entity_index(
+        self, query_vec: list[float], top_k: int
+    ) -> list[ContextChunk]:
+        """Search the entity_embeddings vector index."""
+        try:
+            results = self._graph.execute_query(
+                "CALL db.index.vector.queryNodes('entity_embeddings', $top_k, $vec) "
+                "YIELD node, score "
+                "RETURN node.id AS entity_id, node.name AS name, "
+                "node.description AS description, score "
+                "ORDER BY score DESC",
+                {"top_k": top_k, "vec": query_vec},
+            )
+            return [
+                ContextChunk(
+                    chunk_id=r.get("entity_id", ""),
+                    text=r.get("description", r.get("name", "")),
+                    score=r.get("score", 0.0),
+                    metadata={"type": "entity", "name": r.get("name", "")},
+                )
+                for r in results
+                if r.get("description") or r.get("name")
+            ]
+        except Exception:
+            logger.debug("entity_embeddings index not available")
+            return []

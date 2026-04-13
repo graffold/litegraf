@@ -3,10 +3,10 @@
   "sessionId": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
   "status": "running",
   "startedAt": "2026-04-13T13:16:14.514Z",
-  "updatedAt": "2026-04-13T13:20:29.062Z",
-  "currentIteration": 0,
+  "updatedAt": "2026-04-13T13:22:56.555Z",
+  "currentIteration": 1,
   "maxIterations": 20,
-  "tasksCompleted": 0,
+  "tasksCompleted": 1,
   "isPaused": false,
   "agentPlugin": "kiro",
   "trackerState": {
@@ -17,8 +17,8 @@
       {
         "id": "US-001",
         "title": "Multi-mode query parameter",
-        "status": "open",
-        "completedInSession": false
+        "status": "completed",
+        "completedInSession": true
       },
       {
         "id": "US-002",
@@ -76,7 +76,18 @@
       }
     ]
   },
-  "iterations": [],
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Multi-mode query parameter",
+      "taskCompleted": true,
+      "durationMs": 253356,
+      "startedAt": "2026-04-13T13:16:15.706Z",
+      "endedAt": "2026-04-13T13:20:29.062Z"
+    }
+  ],
   "skippedTaskIds": [],
   "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag",
   "activeTaskIds": [],

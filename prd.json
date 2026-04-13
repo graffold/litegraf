@@ -30,9 +30,10 @@
         "Incremental: new inserts update embeddings for merged entities"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-003",
@@ -157,6 +158,6 @@
     "createdAt": "2026-04-13T13:16:07.778Z",
     "version": "1.0.0",
     "sourcePrd": "PRD.md",
-    "updatedAt": "2026-04-13T13:20:29.062Z"
+    "updatedAt": "2026-04-13T13:22:56.555Z"
   }
 }
