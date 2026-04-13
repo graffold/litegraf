@@ -89,3 +89,19 @@ after each iteration and it's included in prompts for context.
   - The `register()` method's category map also needs updating when adding a new backend type
   - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio`, `neo4j` packages — not related to this change
 ---
+
+## 2026-04-13 - US-007
+- Added `max_context_tokens: int = 8000` dataclass field to `LiteGraf` under a new `# --- Token budget ---` section
+- Added `tokenizer: TokenCounter | None = None` field — users can inject a custom `(str) -> int` callable
+- Created `TokenCounter` Protocol and `_default_token_counter()` factory using tiktoken `cl100k_base` encoding
+- Added `_apply_token_budget()` method that partitions context chunks into buckets by type (entity, relationship, chunk), gives each non-empty bucket a proportional share of the budget, and greedily fills each bucket by score
+- Wired `_apply_token_budget()` into `aquery()` after reranking and before context assembly/LLM call
+- Added `tiktoken>=0.7.0` to `pyproject.toml` core dependencies
+- Exported `TokenCounter` from `src/pipeline/__init__.py`
+- Files changed: `src/pipeline/litegraf.py`, `src/pipeline/__init__.py`, `pyproject.toml`
+- **Learnings:**
+  - `tokenizer` is per-instance config (not per-query) since it's a heavyweight encoding load — follows the same pattern as `embedding` and `reranker`
+  - The `TokenCounter` Protocol is just `__call__(self, text: str) -> int` — any lambda or function works, no need for a full ABC
+  - tiktoken was already used in `token_chunker.py` but wasn't a declared dependency — now it is
+  - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
+---

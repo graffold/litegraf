@@ -16,7 +16,9 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
+
+import tiktoken
 
 from pipeline.dx.cache import LLMCache
 from pipeline.dx.dedup import ContentDeduplicator
@@ -25,6 +27,18 @@ from pipeline.dx.models import QUERY_MODES, ContextChunk, InsertResult, QueryMod
 from pipeline.dx.registry import BackendRegistry
 from pipeline.dx.sync_utils import run_sync
 from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
+
+
+class TokenCounter(Protocol):
+    """Protocol for token counting callables: ``(text: str) -> int``."""
+
+    def __call__(self, text: str) -> int: ...
+
+
+def _default_token_counter() -> TokenCounter:
+    """Return a tiktoken-based token counter (cl100k_base encoding)."""
+    enc = tiktoken.get_encoding("cl100k_base")
+    return lambda text: len(enc.encode(text))
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +89,10 @@ class LiteGraf:
     # --- Reranker ---
     reranker: str | RerankerProvider | type[RerankerProvider] | None = None
 
+    # --- Token budget ---
+    max_context_tokens: int = 8000
+    tokenizer: TokenCounter | None = None
+
     # --- Resolved instances (set in __post_init__) ---
     _graph: GraphStore = field(init=False, repr=False)
     _embedder: EmbeddingProvider = field(init=False, repr=False)
@@ -83,6 +101,7 @@ class LiteGraf:
     _dedup: ContentDeduplicator = field(init=False, repr=False)
     _cache: LLMCache | None = field(init=False, repr=False)
     _reranker: RerankerProvider | None = field(init=False, repr=False)
+    _token_counter: TokenCounter = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         # Resolve backends via registry
@@ -130,6 +149,9 @@ class LiteGraf:
             if self.reranker is not None
             else None
         )
+
+        # Token counter
+        self._token_counter = self.tokenizer or _default_token_counter()
 
         # Ensure vector indexes exist
         self._ensure_entity_vector_index()
@@ -228,6 +250,9 @@ class LiteGraf:
                 )
                 for r in reranked
             ]
+
+        # Apply token budget
+        context_chunks = self._apply_token_budget(context_chunks)
 
         answer: str | None = None
         if not only_context and context_chunks:
@@ -482,6 +507,49 @@ class LiteGraf:
                     f"Entity:{target}",
                     rel_props,
                 )
+
+    def _apply_token_budget(self, chunks: list[ContextChunk]) -> list[ContextChunk]:
+        """Truncate context chunks to fit within *max_context_tokens*.
+
+        Chunks are already sorted by score (descending).  We partition them
+        into three buckets — entity, relationship, and plain chunk — and give
+        each bucket a proportional share of the budget.  Within each bucket
+        the highest-scored items are kept first.
+        """
+        if not chunks:
+            return chunks
+
+        budget = self.max_context_tokens
+        count = self._token_counter
+
+        # Partition by type
+        buckets: dict[str, list[ContextChunk]] = {"entity": [], "relationship": [], "chunk": []}
+        for c in chunks:
+            kind = c.metadata.get("type", "chunk")
+            buckets.setdefault(kind, buckets["chunk"]).append(c)
+
+        # Non-empty bucket count determines proportional share
+        active = {k: v for k, v in buckets.items() if v}
+        if not active:
+            return []
+
+        share = budget // len(active)
+        remainder = budget - share * len(active)
+
+        result: list[ContextChunk] = []
+        for i, (_, items) in enumerate(active.items()):
+            bucket_budget = share + (remainder if i == 0 else 0)
+            used = 0
+            for c in items:
+                tokens = count(c.text)
+                if used + tokens > bucket_budget:
+                    break
+                used += tokens
+                result.append(c)
+
+        # Re-sort by score descending
+        result.sort(key=lambda c: c.score, reverse=True)
+        return result
 
     def _similarity_search(
         self, query_vec: list[float], top_k: int = 10, *, mode: QueryMode = "hybrid"
