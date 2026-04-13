@@ -70,6 +70,7 @@ class LiteGraf:
 
     # --- Extraction ---
     max_gleaning: int = 1
+    enable_entity_merge: bool = True
 
     # --- Resolved instances (set in __post_init__) ---
     _graph: GraphStore = field(init=False, repr=False)
@@ -166,7 +167,7 @@ class LiteGraf:
                 rels = extraction.get("relationships", [])
                 total_entities += len(nodes)
                 total_rels += len(rels)
-                self._store_extraction(chunk_id, nodes, rels)
+                await self._store_extraction(chunk_id, nodes, rels)
 
             self._dedup.mark_seen(doc_id)
 
@@ -355,13 +356,41 @@ class LiteGraf:
 
         return {"entities": all_entities, "relationships": all_rels}
 
-    def _store_extraction(
+    async def _store_extraction(
         self,
         chunk_id: str,
         nodes: list[dict[str, Any]],
         rels: list[dict[str, Any]],
     ) -> None:
         """Upsert extracted entities and relationships into the graph store."""
+        # --- Entity merge: fetch existing descriptions and merge via LLM ---
+        if self.enable_entity_merge:
+            for node in nodes:
+                name = node.get("name", "")
+                label = node.get("type", "Entity")
+                new_desc = node.get("description", "")
+                if not (name and new_desc):
+                    continue
+                node_id = f"{label}:{name}"
+                try:
+                    existing = self._graph.execute_query(
+                        "MATCH (n {id: $id}) RETURN n.description AS description",
+                        {"id": node_id},
+                    )
+                except Exception:
+                    continue
+                old_desc = (existing[0].get("description") or "") if existing else ""
+                if old_desc and old_desc != new_desc:
+                    try:
+                        merged = await self._llm.ainvoke(
+                            "Merge these two descriptions of the same entity into one concise summary.\n\n"
+                            f"Description 1: {old_desc}\n\nDescription 2: {new_desc}\n\nMerged description:"
+                        )
+                        if merged and merged.strip():
+                            node["description"] = merged.strip()
+                    except Exception:
+                        logger.debug("Entity merge LLM call failed for %s", node_id)
+
         # Embed entity descriptions in batch
         descriptions = []
         entity_indices: list[int] = []

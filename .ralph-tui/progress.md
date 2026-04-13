@@ -57,3 +57,18 @@ after each iteration and it's included in prompts for context.
   - The existing `GleaningExtractor` uses a different prompt format (no `description` field) — the inline implementation matches the existing extraction prompt style (with `description`) for consistency with US-002/US-003 entity/relationship embedding
   - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
 ---
+
+## 2026-04-13 - US-005
+- Added `enable_entity_merge: bool = True` dataclass field to `LiteGraf` under the `# --- Extraction ---` section
+- Made `_store_extraction` async to support LLM calls for entity description merging
+- When `enable_entity_merge` is True and an entity already exists in the graph with a different description, the LLM is called to produce a merged summary
+- The merged description replaces the new description before embedding, so the re-embedded vector reflects the merged text
+- When `enable_entity_merge` is False, or the entity is new, or descriptions match, no extra LLM call is made
+- Updated `ainsert` call site to `await self._store_extraction(...)` 
+- Files changed: `src/pipeline/litegraf.py`
+- **Learnings:**
+  - `_store_extraction` was sync but needed to become async to call `self._llm.ainvoke()` for merge — since it's only called from `ainsert` (async), this is safe
+  - Entity node IDs follow the pattern `{label}:{name}` — used this to query for existing descriptions before upsert
+  - The merge step runs before batch embedding, so the merged description gets properly embedded in the same pass
+  - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio`, `neo4j` packages — not related to this change
+---
