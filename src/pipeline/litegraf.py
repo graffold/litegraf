@@ -68,6 +68,9 @@ class LiteGraf:
     enable_dedup: bool = True
     working_dir: str = "./litegraf_workdir"
 
+    # --- Extraction ---
+    max_gleaning: int = 1
+
     # --- Resolved instances (set in __post_init__) ---
     _graph: GraphStore = field(init=False, repr=False)
     _embedder: EmbeddingProvider = field(init=False, repr=False)
@@ -116,8 +119,9 @@ class LiteGraf:
         # Dedup
         self._dedup = ContentDeduplicator(working_dir=self.working_dir)
 
-        # Ensure entity_embeddings vector index exists
+        # Ensure vector indexes exist
         self._ensure_entity_vector_index()
+        self._ensure_relationship_vector_index()
 
         logger.info(
             "LiteGraf initialized (graph=%s, llm=%s, embedding=%s)",
@@ -257,6 +261,17 @@ class LiteGraf:
         except Exception:
             logger.debug("Could not create entity_embeddings index (may already exist or DB unavailable)")
 
+    def _ensure_relationship_vector_index(self) -> None:
+        """Create the relationship_embeddings vector index if it doesn't exist."""
+        try:
+            self._graph.execute_query(
+                "CREATE VECTOR INDEX relationship_embeddings IF NOT EXISTS "
+                "FOR ()-[r:RELATED_TO]-() ON (r.embedding) "
+                "OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}"
+            )
+        except Exception:
+            logger.debug("Could not create relationship_embeddings index (may already exist or DB unavailable)")
+
     def _chunk_text(self, text: str, doc_id: str) -> list[tuple[str, str]]:
         """Split text into chunks. Returns list of (chunk_id, chunk_text)."""
         # Simple token-approximate chunking by character count
@@ -276,7 +291,11 @@ class LiteGraf:
         return chunks
 
     async def _extract_chunk(self, chunk_text: str) -> dict[str, Any]:
-        """Extract entities and relationships from a chunk via LLM."""
+        """Extract entities and relationships from a chunk via LLM.
+
+        When max_gleaning > 1, performs additional passes asking the LLM
+        for missed entities/relationships and merges results.
+        """
         prompt = (
             "Extract all entities (people, organizations, concepts, proteins, diseases, etc.) "
             "and relationships from the following text. "
@@ -284,7 +303,57 @@ class LiteGraf:
             "'relationships' (list of {source, target, type, description}). "
             "Each 'description' should be a concise summary of the entity or relationship."
         )
-        return await self._llm.extract(prompt, chunk_text)
+        result = await self._llm.extract(prompt, chunk_text)
+
+        if self.max_gleaning <= 1:
+            return result
+
+        all_entities: list[dict[str, Any]] = list(result.get("entities", []))
+        all_rels: list[dict[str, Any]] = list(result.get("relationships", []))
+        seen_names: set[str] = {e.get("name", "").strip().lower() for e in all_entities}
+        seen_rels: set[tuple[str, str, str]] = {
+            (r.get("source", "").lower(), r.get("target", "").lower(), r.get("type", "").lower())
+            for r in all_rels
+        }
+
+        for _ in range(self.max_gleaning - 1):
+            entity_names = ", ".join(e.get("name", "") for e in all_entities) or "(none)"
+            gleaning_prompt = (
+                "The following entities have already been extracted from the text below:\n"
+                f"Already found: {entity_names}\n\n"
+                "Did you miss any entities or relationships? "
+                "Re-read the text carefully and return ONLY new ones not listed above.\n"
+                "Return valid JSON with 'entities' (list of {name, type, description}) and "
+                "'relationships' (list of {source, target, type, description}).\n"
+                "If nothing was missed, return: {\"entities\": [], \"relationships\": []}\n\n"
+                f"Text: {chunk_text}"
+            )
+            try:
+                extra = await self._llm.extract(gleaning_prompt, "")
+            except Exception:
+                logger.debug("Gleaning pass failed, stopping early")
+                break
+
+            new_entities = [
+                e for e in extra.get("entities", [])
+                if e.get("name", "").strip().lower() not in seen_names
+            ]
+            new_rels = [
+                r for r in extra.get("relationships", [])
+                if (r.get("source", "").lower(), r.get("target", "").lower(), r.get("type", "").lower()) not in seen_rels
+            ]
+
+            if not new_entities and not new_rels:
+                break
+
+            for e in new_entities:
+                seen_names.add(e.get("name", "").strip().lower())
+            for r in new_rels:
+                seen_rels.add((r.get("source", "").lower(), r.get("target", "").lower(), r.get("type", "").lower()))
+            all_entities.extend(new_entities)
+            all_rels.extend(new_rels)
+
+        return {"entities": all_entities, "relationships": all_rels}
 
     def _store_extraction(
         self,
@@ -324,16 +393,37 @@ class LiteGraf:
                     props["embedding"] = emb_map[i]
                 self._graph.upsert_node(label, props)
 
-        for rel in rels:
+        # Embed relationship descriptions in batch
+        rel_descriptions = []
+        rel_indices: list[int] = []
+        for i, rel in enumerate(rels):
+            desc = rel.get("description", "")
+            if rel.get("source") and rel.get("target") and desc:
+                rel_descriptions.append(desc)
+                rel_indices.append(i)
+
+        rel_embeddings: list[list[float]] = []
+        if rel_descriptions:
+            rel_embeddings = self._embedder.embed_documents(rel_descriptions)
+
+        rel_emb_map: dict[int, list[float]] = dict(zip(rel_indices, rel_embeddings))
+
+        for i, rel in enumerate(rels):
             source = rel.get("source", "")
             target = rel.get("target", "")
             rel_type = rel.get("type", "RELATED_TO")
             if source and target:
+                rel_props: dict[str, Any] = {"chunk_id": chunk_id}
+                desc = rel.get("description", "")
+                if desc:
+                    rel_props["description"] = desc
+                if i in rel_emb_map:
+                    rel_props["embedding"] = rel_emb_map[i]
                 self._graph.upsert_relationship(
                     f"Entity:{source}",
                     rel_type,
                     f"Entity:{target}",
-                    {"chunk_id": chunk_id},
+                    rel_props,
                 )
 
     def _similarity_search(
@@ -349,6 +439,10 @@ class LiteGraf:
         # Entity-based search (used by local, hybrid, mix)
         if mode in ("local", "hybrid", "mix"):
             chunks.extend(self._search_entity_index(query_vec, top_k))
+
+        # Relationship-based search (used by global, hybrid, mix)
+        if mode in ("global", "hybrid", "mix"):
+            chunks.extend(self._search_relationship_index(query_vec, top_k))
 
         if not chunks:
             # Fallback: try chunk search for any mode
@@ -414,4 +508,31 @@ class LiteGraf:
             ]
         except Exception:
             logger.debug("entity_embeddings index not available")
+            return []
+
+    def _search_relationship_index(
+        self, query_vec: list[float], top_k: int
+    ) -> list[ContextChunk]:
+        """Search the relationship_embeddings vector index."""
+        try:
+            results = self._graph.execute_query(
+                "CALL db.index.vector.queryRelationships('relationship_embeddings', $top_k, $vec) "
+                "YIELD relationship, score "
+                "RETURN relationship.description AS description, "
+                "relationship.chunk_id AS chunk_id, type(relationship) AS rel_type, score "
+                "ORDER BY score DESC",
+                {"top_k": top_k, "vec": query_vec},
+            )
+            return [
+                ContextChunk(
+                    chunk_id=r.get("chunk_id", ""),
+                    text=r.get("description", ""),
+                    score=r.get("score", 0.0),
+                    metadata={"type": "relationship", "rel_type": r.get("rel_type", "")},
+                )
+                for r in results
+                if r.get("description")
+            ]
+        except Exception:
+            logger.debug("relationship_embeddings index not available")
             return []

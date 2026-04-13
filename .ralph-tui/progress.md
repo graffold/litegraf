@@ -43,3 +43,17 @@ after each iteration and it's included in prompts for context.
   - The vector index CREATE uses `IF NOT EXISTS` so it's safe to call on every init
   - Pre-existing test failures: missing `neo4j`, `pytest-asyncio`, `hypothesis` packages — not related to this change
 ---
+
+## 2026-04-13 - US-004
+- Added `max_gleaning: int = 1` dataclass field to `LiteGraf` under a new `# --- Extraction ---` section
+- Modified `_extract_chunk()` to perform additional gleaning passes when `max_gleaning > 1`
+- Each gleaning pass sends a prompt listing already-found entities and asks "Did you miss any entities or relationships?"
+- New entities/relationships are deduplicated by normalized name (entities) and (source, target, type) tuple (relationships) before merging
+- Early termination when a gleaning pass returns nothing new
+- `max_gleaning=1` (default) preserves exact single-pass behavior — the gleaning code path is skipped entirely
+- Files changed: `src/pipeline/litegraf.py`
+- **Learnings:**
+  - A `GleaningExtractor` processor already exists in `src/pipeline/processors/gleaning_extractor.py` with sync `invoke()` calls — but integrating gleaning directly into `_extract_chunk` using the async `self._llm.extract()` path is simpler and avoids sync/async mismatch
+  - The existing `GleaningExtractor` uses a different prompt format (no `description` field) — the inline implementation matches the existing extraction prompt style (with `description`) for consistency with US-002/US-003 entity/relationship embedding
+  - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
+---
