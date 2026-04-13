@@ -122,3 +122,16 @@ after each iteration and it's included in prompts for context.
   - `DETACH DELETE` on Chunk nodes handles any remaining edges, while entity deletion uses plain `DELETE` (relationships already removed in step 1)
   - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
 ---
+
+## 2026-04-13 - US-009
+- Added `history: list[dict[str, str]] | None = None` keyword argument to both `aquery()` and `query()` in `src/pipeline/litegraf.py`
+- When history is provided and non-empty, it is formatted as a "Conversation history" block and prepended to the LLM prompt (after the system instruction, before context)
+- History is only used for LLM response generation — retrieval (`_similarity_search`) is unaffected
+- When history is `None` or empty, behavior is identical to before (no prompt change)
+- Sync `query()` wrapper threads `history` through to `aquery()` via `run_sync()`
+- Files changed: `src/pipeline/litegraf.py`
+- **Learnings:**
+  - `history` is a per-query parameter (not per-instance) since conversation context changes per call — follows the same pattern as `only_context` and `mode`
+  - No new types or exports needed — the history format is a plain `list[dict[str, str]]` matching the standard `{"role": "...", "content": "..."}` convention
+  - Pre-existing mypy failures: missing `sentence_transformers`, `neo4j`, `aiosqlite`, `nest_asyncio`, `ollama` stubs — not related to this change
+---

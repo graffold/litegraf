@@ -219,7 +219,14 @@ class LiteGraf:
 
     # --- Query (async) ------------------------------------------------------
 
-    async def aquery(self, question: str, *, only_context: bool = False, mode: QueryMode = "hybrid") -> QueryResult:
+    async def aquery(
+        self,
+        question: str,
+        *,
+        only_context: bool = False,
+        mode: QueryMode = "hybrid",
+        history: list[dict[str, str]] | None = None,
+    ) -> QueryResult:
         """Query the knowledge graph (async)."""
         if not question.strip():
             raise ValueError("Question must be a non-empty string")
@@ -257,9 +264,15 @@ class LiteGraf:
         answer: str | None = None
         if not only_context and context_chunks:
             context_text = "\n---\n".join(c.text for c in context_chunks)
+            history_block = ""
+            if history:
+                history_block = "Conversation history:\n" + "\n".join(
+                    f"{m['role']}: {m['content']}" for m in history
+                ) + "\n\n"
             prompt = (
                 "Answer the following question based on the provided context. "
                 "Be concise and factual.\n\n"
+                f"{history_block}"
                 f"Context:\n{context_text}\n\n"
                 f"Question: {question}\n\nAnswer:"
             )
@@ -332,9 +345,16 @@ class LiteGraf:
         """Delete a document and clean up its KG data (sync wrapper)."""
         return run_sync(self.adelete(doc_id))
 
-    def query(self, question: str, *, only_context: bool = False, mode: QueryMode = "hybrid") -> QueryResult:
+    def query(
+        self,
+        question: str,
+        *,
+        only_context: bool = False,
+        mode: QueryMode = "hybrid",
+        history: list[dict[str, str]] | None = None,
+    ) -> QueryResult:
         """Query the knowledge graph (sync wrapper)."""
-        return run_sync(self.aquery(question, only_context=only_context, mode=mode))
+        return run_sync(self.aquery(question, only_context=only_context, mode=mode, history=history))
 
     # --- Lifecycle ----------------------------------------------------------
 

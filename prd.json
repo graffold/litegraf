@@ -139,9 +139,10 @@
         "History is optional, default empty"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "labels": [],
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-010",
@@ -163,6 +164,6 @@
     "createdAt": "2026-04-13T13:16:07.778Z",
     "version": "1.0.0",
     "sourcePrd": "PRD.md",
-    "updatedAt": "2026-04-13T13:40:51.973Z"
+    "updatedAt": "2026-04-13T13:42:49.300Z"
   }
 }
