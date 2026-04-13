@@ -24,7 +24,7 @@ from pipeline.dx.limiter import RateLimitedLLMProvider
 from pipeline.dx.models import QUERY_MODES, ContextChunk, InsertResult, QueryMode, QueryResult
 from pipeline.dx.registry import BackendRegistry
 from pipeline.dx.sync_utils import run_sync
-from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider
+from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +72,9 @@ class LiteGraf:
     max_gleaning: int = 1
     enable_entity_merge: bool = True
 
+    # --- Reranker ---
+    reranker: str | RerankerProvider | type[RerankerProvider] | None = None
+
     # --- Resolved instances (set in __post_init__) ---
     _graph: GraphStore = field(init=False, repr=False)
     _embedder: EmbeddingProvider = field(init=False, repr=False)
@@ -79,6 +82,7 @@ class LiteGraf:
     _job_store: JobStore = field(init=False, repr=False)
     _dedup: ContentDeduplicator = field(init=False, repr=False)
     _cache: LLMCache | None = field(init=False, repr=False)
+    _reranker: RerankerProvider | None = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
         # Resolve backends via registry
@@ -119,6 +123,13 @@ class LiteGraf:
 
         # Dedup
         self._dedup = ContentDeduplicator(working_dir=self.working_dir)
+
+        # Reranker (optional)
+        self._reranker = (
+            BackendRegistry.resolve_reranker(self.reranker)
+            if self.reranker is not None
+            else None
+        )
 
         # Ensure vector indexes exist
         self._ensure_entity_vector_index()
@@ -200,6 +211,23 @@ class LiteGraf:
 
         # Similarity search — use execute_query with a vector search Cypher
         context_chunks = self._similarity_search(query_vec, top_k=10, mode=mode)
+
+        # Rerank if a reranker is configured
+        if self._reranker and context_chunks:
+            candidates = [
+                {"text": c.text, "chunk_id": c.chunk_id, "score": c.score, "metadata": c.metadata}
+                for c in context_chunks
+            ]
+            reranked = self._reranker.rerank(question, candidates)
+            context_chunks = [
+                ContextChunk(
+                    chunk_id=r["chunk_id"],
+                    text=r["text"],
+                    score=r["score"],
+                    metadata=r.get("metadata", {}),
+                )
+                for r in reranked
+            ]
 
         answer: str | None = None
         if not only_context and context_chunks:

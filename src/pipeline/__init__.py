@@ -4,7 +4,7 @@ Re-exports the four core abstract interfaces and the LiteGraf entry point.
 """
 
 from pipeline.dx.models import QueryMode
-from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider
+from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
 from pipeline.litegraf import LiteGraf
 
-__all__ = ["GraphStore", "EmbeddingProvider", "LLMProvider", "JobStore", "LiteGraf", "QueryMode"]
+__all__ = ["GraphStore", "EmbeddingProvider", "LLMProvider", "JobStore", "RerankerProvider", "LiteGraf", "QueryMode"]

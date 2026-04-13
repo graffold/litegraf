@@ -72,3 +72,20 @@ after each iteration and it's included in prompts for context.
   - The merge step runs before batch embedding, so the merged description gets properly embedded in the same pass
   - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio`, `neo4j` packages — not related to this change
 ---
+
+## 2026-04-13 - US-006
+- Added `RerankerProvider` ABC to `src/pipeline/interfaces.py` with `rerank(query, candidates) -> scored list` method
+- Created `src/pipeline/backends/cross_encoder_reranker.py` — `CrossEncoderReranker` using sentence-transformers `CrossEncoder`
+- Added reranker resolution to `BackendRegistry` in `src/pipeline/dx/registry.py` — string shorthand `"cross-encoder"`, class reference, or instance passthrough
+- Added `reranker: str | RerankerProvider | type[RerankerProvider] | None = None` field to `LiteGraf` dataclass
+- Resolved `_reranker` in `__post_init__` via `BackendRegistry.resolve_reranker()` (only when not None)
+- Wired reranker into `aquery()` after `_similarity_search()` and before context assembly/LLM call
+- When no reranker is set (`None` default), retrieval results are returned as-is — zero behavior change
+- Exported `RerankerProvider` from `src/pipeline/__init__.py`
+- Files changed: `src/pipeline/interfaces.py`, `src/pipeline/backends/cross_encoder_reranker.py`, `src/pipeline/dx/registry.py`, `src/pipeline/litegraf.py`, `src/pipeline/__init__.py`
+- **Learnings:**
+  - The `BackendRegistry._resolve()` method handles all three input forms (string, class, instance) generically — adding a new backend type only requires a new registry dict, lazy loader, and `resolve_*` classmethod
+  - Reranker is per-instance config (not per-query) since it's a heavyweight model load — follows the same pattern as `embedding` and `llm`
+  - The `register()` method's category map also needs updating when adding a new backend type
+  - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio`, `neo4j` packages — not related to this change
+---
