@@ -32,6 +32,16 @@ class InsertResult:
 
 
 @dataclass
+class DeleteResult:
+    """Result of a delete operation."""
+
+    doc_id: str
+    chunks_removed: int
+    entities_removed: int
+    relationships_removed: int
+
+
+@dataclass
 class QueryResult:
     """Result of a query operation."""
 

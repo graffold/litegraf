@@ -43,6 +43,11 @@ class ContentDeduplicator:
         self._seen.add(content_id)
         self._save()
 
+    def remove_seen(self, content_id: str) -> None:
+        """Remove *content_id* from the index so it can be re-inserted."""
+        self._seen.discard(content_id)
+        self._save()
+
     def clear(self) -> None:
         """Reset the dedup index (in-memory and on disk)."""
         self._seen.clear()

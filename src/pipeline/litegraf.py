@@ -23,7 +23,7 @@ import tiktoken
 from pipeline.dx.cache import LLMCache
 from pipeline.dx.dedup import ContentDeduplicator
 from pipeline.dx.limiter import RateLimitedLLMProvider
-from pipeline.dx.models import QUERY_MODES, ContextChunk, InsertResult, QueryMode, QueryResult
+from pipeline.dx.models import QUERY_MODES, ContextChunk, DeleteResult, InsertResult, QueryMode, QueryResult
 from pipeline.dx.registry import BackendRegistry
 from pipeline.dx.sync_utils import run_sync
 from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
@@ -200,7 +200,7 @@ class LiteGraf:
                 rels = extraction.get("relationships", [])
                 total_entities += len(nodes)
                 total_rels += len(rels)
-                await self._store_extraction(chunk_id, nodes, rels)
+                await self._store_extraction(chunk_id, chunk_text, nodes, rels)
 
             self._dedup.mark_seen(doc_id)
 
@@ -272,11 +272,65 @@ class LiteGraf:
             duration_seconds=round(duration, 3),
         )
 
+    # --- Delete (async) -----------------------------------------------------
+
+    async def adelete(self, doc_id: str) -> DeleteResult:
+        """Delete a document and clean up its entities/relationships from the KG (async).
+
+        Chunks belonging to *doc_id* are removed.  Entities and relationships
+        that are unique to those chunks are deleted.  Shared entities (referenced
+        by other documents) are kept.  The dedup index is updated so the same
+        content can be re-inserted.
+        """
+        chunk_prefix = f"{doc_id}_chunk_"
+
+        # 1. Delete relationships unique to this document
+        #    A relationship is unique if its chunk_id belongs to this doc.
+        rel_result = self._graph.execute_query(
+            "MATCH ()-[r]->() WHERE r.chunk_id STARTS WITH $prefix "
+            "DELETE r RETURN count(r) AS cnt",
+            {"prefix": chunk_prefix},
+        )
+        rels_removed = rel_result[0]["cnt"] if rel_result else 0
+
+        # 2. Delete entity nodes whose chunk_id belongs to this doc AND
+        #    that have no remaining relationships from other documents.
+        ent_result = self._graph.execute_query(
+            "MATCH (n:Entity) WHERE n.chunk_id STARTS WITH $prefix "
+            "AND NOT EXISTS { MATCH (n)-[r]-() WHERE NOT r.chunk_id STARTS WITH $prefix } "
+            "AND NOT EXISTS { MATCH (n)-[r]-() WHERE r.chunk_id IS NULL } "
+            "DELETE n RETURN count(n) AS cnt",
+            {"prefix": chunk_prefix},
+        )
+        ents_removed = ent_result[0]["cnt"] if ent_result else 0
+
+        # 3. Delete chunk nodes
+        chunk_del = self._graph.execute_query(
+            "MATCH (c:Chunk) WHERE c.chunk_id STARTS WITH $prefix "
+            "DETACH DELETE c RETURN count(c) AS cnt",
+            {"prefix": chunk_prefix},
+        )
+        chunks_removed = chunk_del[0]["cnt"] if chunk_del else 0
+
+        # 4. Update dedup index so the same content can be re-inserted
+        self._dedup.remove_seen(doc_id)
+
+        return DeleteResult(
+            doc_id=doc_id,
+            chunks_removed=chunks_removed,
+            entities_removed=ents_removed,
+            relationships_removed=rels_removed,
+        )
+
     # --- Sync wrappers ------------------------------------------------------
 
     def insert(self, content: str | list[str]) -> InsertResult:
         """Insert text content into the knowledge graph (sync wrapper)."""
         return run_sync(self.ainsert(content))
+
+    def delete(self, doc_id: str) -> DeleteResult:
+        """Delete a document and clean up its KG data (sync wrapper)."""
+        return run_sync(self.adelete(doc_id))
 
     def query(self, question: str, *, only_context: bool = False, mode: QueryMode = "hybrid") -> QueryResult:
         """Query the knowledge graph (sync wrapper)."""
@@ -412,10 +466,19 @@ class LiteGraf:
     async def _store_extraction(
         self,
         chunk_id: str,
+        chunk_text: str,
         nodes: list[dict[str, Any]],
         rels: list[dict[str, Any]],
     ) -> None:
         """Upsert extracted entities and relationships into the graph store."""
+        # --- Store chunk node ---
+        chunk_embedding = self._embedder.embed_query(chunk_text)
+        self._graph.upsert_node("Chunk", {
+            "id": chunk_id,
+            "chunk_id": chunk_id,
+            "text": chunk_text,
+            "embedding": chunk_embedding,
+        })
         # --- Entity merge: fetch existing descriptions and merge via LLM ---
         if self.enable_entity_merge:
             for node in nodes:

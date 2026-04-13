@@ -105,3 +105,20 @@ after each iteration and it's included in prompts for context.
   - tiktoken was already used in `token_chunker.py` but wasn't a declared dependency — now it is
   - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
 ---
+
+## 2026-04-13 - US-008
+- Added `adelete(doc_id)` async method and `delete(doc_id)` sync wrapper to `LiteGraf`
+- Deletion order: relationships first (by chunk_id prefix), then orphaned entities (no remaining cross-doc relationships), then chunk nodes
+- Entity nodes are only deleted if they have no relationships from other documents — shared entities are preserved
+- Added `remove_seen(content_id)` to `ContentDeduplicator` so deleted content can be re-inserted
+- Added `DeleteResult` dataclass to `src/pipeline/dx/models.py` with `doc_id`, `chunks_removed`, `entities_removed`, `relationships_removed`
+- Added Chunk node creation in `_store_extraction` — stores chunk text + embedding so chunks are properly tracked in the graph and deletable
+- Exported `DeleteResult` from `src/pipeline/__init__.py`
+- Files changed: `src/pipeline/litegraf.py`, `src/pipeline/dx/dedup.py`, `src/pipeline/dx/models.py`, `src/pipeline/__init__.py`
+- **Learnings:**
+  - Entity nodes use MERGE on `id` (`{label}:{name}`), so the `chunk_id` property on an entity reflects the *last* chunk that touched it — deletion must check for remaining relationships rather than relying solely on chunk_id ownership
+  - The deletion order matters: relationships must be removed before entities, otherwise the "has remaining relationships" check would incorrectly keep entities that only have relationships from the same document
+  - Chunk nodes were not previously stored in the graph — added them in `_store_extraction` with text + embedding so the `chunk_embeddings` vector index and deletion both work correctly
+  - `DETACH DELETE` on Chunk nodes handles any remaining edges, while entity deletion uses plain `DELETE` (relationships already removed in step 1)
+  - Pre-existing test failures: missing `hypothesis`, `pytest-asyncio` packages — not related to this change
+---
