@@ -163,6 +163,33 @@ class MyGraphStore(GraphStore):
 kg = LiteGraf(graph_store=MyGraphStore())
 ```
 
+## Benchmarks
+
+litegraf includes a 4-axis benchmark suite that validates each pipeline component
+independently — no graph database required, just an LLM endpoint:
+
+| Axis | What it measures |
+|------|-----------------|
+| `extraction` | NER F1 against gold-standard biomedical datasets (bc5cdr, chemprot, gad) |
+| `kg-quality` | Entity consolidation accuracy, contradiction detection, provenance validation |
+| `query` | Mode routing, answer relevance (LLM-as-judge), latency percentiles |
+| `throughput` | Docs/min, embedding rate, peak memory, estimated token cost |
+
+```bash
+# Interactive TUI
+uv run litegraf-tui
+
+# Or directly
+uv run litegraf-tui bench --all
+uv run litegraf-tui bench --compare-models --docs 10
+```
+
+> End-to-end KG construction benchmarks (Neo4j insert → query) live in
+> [graffold-api](https://github.com/graffold/graffold-api), which uses these
+> pre-validated components.
+
+See [`src/pipeline/benchmarks/README.md`](src/pipeline/benchmarks/README.md) for full details.
+
 ## Development
 
 ```bash

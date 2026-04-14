@@ -1,7 +1,8 @@
 # litegraf Benchmark Suite
 
-Biomedical NER benchmark comparing LLM providers on gold-standard PubMed datasets,
-with optional end-to-end knowledge graph construction.
+Component-level benchmarks for the litegraf knowledge graph pipeline.
+No graph database required — benchmarks the LLM extraction, quality metrics,
+query capabilities, and throughput independently.
 
 📊 **[Live Dashboard](https://thegraffy.github.io/litegraf/)** — interactive charts & leaderboard
 
@@ -10,8 +11,6 @@ with optional end-to-end knowledge graph construction.
 ```bash
 # AWS SSO login (models span eu-north-1 and us-east-1)
 aws sso login
-
-# For KG build axis: local Neo4j running on bolt://localhost:7687
 ```
 
 ## Quick Start
@@ -19,73 +18,50 @@ aws sso login
 ```bash
 cd litegraf
 
-# Extraction benchmark (all models, no Neo4j needed)
+# Extraction benchmark (all models)
 ./bench.sh --docs 10
 
-# Full suite including KG construction (requires Neo4j)
-BENCH_MAX_DOCS=10 \
-NEO4J_DATABASE=benchmark \
-NEO4J_PASSWORD=<your-password> \
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all
+# Full 4-axis suite
+BENCH_MAX_DOCS=10 PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all
+
+# Or use the interactive TUI
+uv run litegraf-tui
 ```
 
-## Run Options
+## Benchmark Axes
 
-### Extraction Only (compare_providers)
+| Axis | What it tests | Needs Neo4j? |
+|------|--------------|:------------:|
+| `extraction` | LLM NER quality against gold-standard datasets | No |
+| `kg-quality` | Entity consolidation, contradiction detection, provenance validation | No |
+| `query` | Mode routing accuracy, answer relevance, latency | No |
+| `throughput` | Extraction speed (docs/min), embedding rate, memory, token cost | No |
 
-Compares entity extraction quality across all models against gold annotations.
+> **Note:** End-to-end KG construction benchmarks (insert → graph → query) live in
+> [graffold-api](https://github.com/graffold/graffold-api), which uses these
+> pre-validated components to build and benchmark the full stack.
+
+### Run Options
 
 ```bash
+# Extraction only (compare_providers — model leaderboard)
 ./bench.sh --docs 10
 ./bench.sh --docs 50 --dataset chemprot
-./bench.sh --dataset gad --docs 10
 
-# Or directly
-PYTHONPATH=src python -m pipeline.benchmarks.compare_providers --docs 10
+# Full suite
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all
+
+# Individual axes
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis extraction
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis kg-quality
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis query
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis throughput
+
+# With competitor comparison
+PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all --competitors nano-graphrag lightrag
 ```
 
 Set `BENCH_TIMEOUT=90` to adjust per-call timeout (default 60s).
-
-### Full 5-Axis Suite (run_benchmark)
-
-```bash
-BENCH_MAX_DOCS=10 \
-NEO4J_DATABASE=benchmark \
-NEO4J_PASSWORD=<your-password> \
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all
-```
-
-Axes: extraction, kg-quality, kg-build, query, throughput.
-
-Run individual axes:
-```bash
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis extraction
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis kg-build
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis kg-quality
-```
-
-### KG Build Axis
-
-Constructs a real Neo4j knowledge graph for **each model** in the `MODELS` list:
-1. Clears the graph
-2. Inserts benchmark docs via `LiteGraf.insert()` (chunking → LLM extraction → Neo4j upsert)
-3. Queries the built graph with sample biomedical questions
-4. Reports per-model: entities, relationships, graph size, throughput, query latency
-
-```bash
-BENCH_MAX_DOCS=10 \
-NEO4J_DATABASE=benchmark \
-NEO4J_PASSWORD=<your-password> \
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --axis kg-build
-```
-
-Neo4j environment variables:
-| Variable | Default |
-|----------|---------|
-| `NEO4J_URI` | `bolt://localhost:7687` |
-| `NEO4J_USER` | `neo4j` |
-| `NEO4J_PASSWORD` | `password` |
-| `NEO4J_DATABASE` | `litegrafbench` |
 
 ## Datasets
 
@@ -116,15 +92,7 @@ Downloaded automatically on first run.
 | llama3.1-8b | Meta | us.meta.llama3-1-8b-instruct-v1:0 | us-east-1 |
 | llama3.2-3b | Meta | us.meta.llama3-2-3b-instruct-v1:0 | us-east-1 |
 
-## Modify Models
-
-Edit `src/pipeline/benchmarks/compare_providers.py` → `MODELS` list:
-
-```python
-{"label": "my-model", "provider": "bedrock", "model": "the.model-id", "region": "us-east-1"},
-```
-
-Comment out to disable, copy a line to add.
+Edit `src/pipeline/benchmarks/compare_providers.py` → `MODELS` list to add/remove.
 
 ## Other Providers
 
@@ -137,6 +105,9 @@ OPENAI_API_KEY=sk-or-... python -m pipeline.benchmarks.compare_providers --provi
 
 # Local Ollama
 python -m pipeline.benchmarks.compare_providers --providers ollama
+
+# Cloudflare Workers AI
+CF_ACCOUNT_ID=... CF_API_TOKEN=... python -m pipeline.benchmarks.compare_providers --providers cloudflare
 ```
 
 ## Output
@@ -160,27 +131,17 @@ nano-graphrag runs automatically if installed:
 
 ```bash
 pip install nano-graphrag
-
-# It will appear in the leaderboard alongside Bedrock models
 ./bench.sh --docs 10
-
-# Or explicitly in the full suite
-PYTHONPATH=src python -m pipeline.benchmarks.run_benchmark --all --competitors nano-graphrag
 ```
 
 ## Dashboard
 
-Interactive GitHub Pages dashboard with charts for F1, precision/recall, latency, and KG stats.
+Interactive GitHub Pages dashboard with charts for F1, precision/recall, latency.
 
 ```bash
-# After running benchmarks, publish results to the dashboard
 ./publish_dashboard.sh
-
-# Then push to GitHub — dashboard auto-updates at:
-# https://thegraffy.github.io/litegraf/
+# Dashboard at: https://thegraffy.github.io/litegraf/
 ```
-
-To enable GitHub Pages: repo Settings → Pages → Source: "Deploy from a branch" → Branch: `main`, folder: `/docs`.
 
 ## Troubleshooting
 
@@ -191,4 +152,3 @@ To enable GitHub Pages: repo Settings → Pages → Source: "Deploy from a branc
 | `Invocation of model ID ... not supported` | Use geo prefix (`us.` for us-east-1, `eu.` for eu-north-1) |
 | `Read timeout` / slow model | Increase `BENCH_TIMEOUT` (default 60s) or comment out model |
 | `Model use case details` | Submit Anthropic use case form in AWS console |
-| Neo4j connection refused | Start Neo4j locally or check `NEO4J_URI` |

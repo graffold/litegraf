@@ -2,10 +2,10 @@
 
 Usage::
 
-    litegraf-tui bench --all
+    litegraf-tui                                    # interactive mode
+    litegraf-tui bench --all                        # run all 4 benchmark axes
     litegraf-tui bench --axis extraction --axis throughput
-    litegraf-tui bench --compare-models --docs 10
-    litegraf-tui bench --axis kg-build --competitors lightrag ms-graphrag
+    litegraf-tui bench --compare-models --docs 10   # multi-model leaderboard
     litegraf-tui insert "TP53 is associated with breast cancer."
     litegraf-tui query "What cancers are associated with TP53?"
     litegraf-tui status
@@ -233,31 +233,6 @@ def _render_kg_quality(data: dict[str, Any]) -> Table:
     return t
 
 
-def _render_kg_build(data: dict[str, Any]) -> Table:
-    """Render kg-build (multi-model graph construction) results."""
-    t = Table(title="🏗️  KG Build (per model)", title_style="bold magenta", border_style="dim")
-    t.add_column("Model", style="bold")
-    t.add_column("Entities", justify="right")
-    t.add_column("Rels", justify="right")
-    t.add_column("Nodes", justify="right")
-    t.add_column("docs/min", justify="right")
-    t.add_column("Time", justify="right")
-    t.add_column("Errs", justify="right")
-
-    for label, m in data.get("models", {}).items():
-        if "skipped" in m or "error" in m:
-            t.add_row(label, f"[dim]{m.get('skipped') or m.get('error', '')[:30]}[/]", "", "", "", "", "")
-            continue
-        t.add_row(
-            label,
-            str(m.get("entities_extracted", 0)),
-            str(m.get("relationships_extracted", 0)),
-            str(m.get("graph_nodes", 0)),
-            f"[cyan]{m.get('docs_per_minute', 0):.1f}[/]",
-            f"{m.get('insert_duration_sec', 0):.1f}s",
-            str(m.get("insert_errors", 0)),
-        )
-    return t
 
 
 def _render_model_comparison(data: dict[str, Any]) -> Table:
@@ -642,7 +617,7 @@ def _interactive() -> None:
                     _run_compare_models_live(ns.docs, ns.dataset, ns.providers)
                 elif ns.all:
                     _run_benchmark_live(
-                        ["extraction", "kg-quality", "kg-build", "query", "throughput"],
+                        ["extraction", "kg-quality", "query", "throughput"],
                         ns.competitors, ns.output_dir, ns.verbose,
                     )
                 elif ns.axis:
