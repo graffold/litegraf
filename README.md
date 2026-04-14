@@ -8,13 +8,18 @@
 ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀   ▀▀▀   ▀▀▀▀▀▀▀  ▀▀▀▀▀▀ ▀▀   ▀▀ ▀▀   ▀▀ ▀▀
   v0.1.0  lightweight knowledge graph benchmark suite
 
-Usage:  litegraf-tui <command>
+Interactive mode  Ctrl+C to exit
 
-  bench      Run benchmarks with graphical output
-  show       Render a previous benchmark result JSON
-  insert     Insert text into the knowledge graph
-  query      Query the knowledge graph
-  status     Show system status and connectivity
+  1  Show system status
+  2  Run all benchmarks
+  3  Benchmark: extraction only
+  4  Benchmark: throughput only
+  5  Compare LLM providers
+  6  Insert text into KG
+  7  Query the KG
+  8  Render a result JSON
+
+litegraf ❯
 ```
 
 A lightweight, pluggable knowledge graph ingestion pipeline. Feed it text, PDFs, or tabular data — it extracts entities and relationships using LLMs and stores them in a graph database.

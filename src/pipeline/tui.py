@@ -34,6 +34,7 @@ from rich.progress import (
     TextColumn,
     TimeElapsedColumn,
 )
+from rich.prompt import Prompt
 from rich.table import Table
 from rich.text import Text
 from rich.tree import Tree
@@ -547,6 +548,142 @@ def _cmd_status(args: argparse.Namespace) -> None:
     console.print(tree)
 
 
+# ── Interactive mode ───────────────────────────────────────────────────────
+
+_MENU = {
+    "1": ("status",              "Show system status"),
+    "2": ("bench --all",         "Run all benchmarks"),
+    "3": ("bench --axis extraction", "Benchmark: extraction only"),
+    "4": ("bench --axis throughput", "Benchmark: throughput only"),
+    "5": ("bench --compare-models",  "Compare LLM providers"),
+    "6": ("insert",              "Insert text into KG"),
+    "7": ("query",               "Query the KG"),
+    "8": ("show",                "Render a result JSON"),
+}
+
+
+def _interactive() -> None:
+    """Interactive REPL — stays alive until Ctrl+C."""
+    _print_banner()
+
+    console.print(f"[{EMERALD}]Interactive mode[/]  [{HINT}]Ctrl+C to exit[/]\n")
+
+    for key, (_, desc) in _MENU.items():
+        console.print(f"  [{BLUE}]{key}[/]  [{TEXT2}]{desc}[/]")
+    console.print()
+
+    try:
+        while True:
+            try:
+                choice = Prompt.ask(f"[{VIOLET}]litegraf[/]", choices=[*_MENU, "q", "quit", "help"], show_choices=False, default="help")
+            except EOFError:
+                break
+
+            if choice in ("q", "quit"):
+                break
+
+            if choice == "help":
+                for key, (_, desc) in _MENU.items():
+                    console.print(f"  [{BLUE}]{key}[/]  [{TEXT2}]{desc}[/]")
+                console.print(f"  [{BLUE}]q[/]  [{TEXT2}]Quit[/]")
+                continue
+
+            cmd_str, _ = _MENU[choice]
+
+            if cmd_str == "insert":
+                text = Prompt.ask(f"  [{TEXT2}]Text to insert[/]")
+                if not text:
+                    continue
+                _do_insert(text)
+
+            elif cmd_str == "query":
+                question = Prompt.ask(f"  [{TEXT2}]Question[/]")
+                if not question:
+                    continue
+                _do_query(question)
+
+            elif cmd_str == "show":
+                path = Prompt.ask(f"  [{TEXT2}]Path to result JSON[/]")
+                if not path:
+                    continue
+                try:
+                    _show_results(path)
+                except Exception as e:
+                    console.print(f"[red]{e}[/]")
+
+            elif cmd_str == "status":
+                _cmd_status(argparse.Namespace())
+
+            elif cmd_str.startswith("bench"):
+                parts = cmd_str.split()
+                ns = argparse.Namespace(
+                    all="--all" in parts,
+                    axis=[p for prev, p in zip(parts, parts[1:]) if prev == "--axis"] or None,
+                    compare_models="--compare-models" in parts,
+                    competitors=[],
+                    docs=10,
+                    dataset="bc5cdr",
+                    providers=None,
+                    output_dir=Path(__file__).resolve().parent / "benchmarks" / "results",
+                    verbose=False,
+                )
+                if ns.compare_models:
+                    _run_compare_models_live(ns.docs, ns.dataset, ns.providers)
+                elif ns.all:
+                    _run_benchmark_live(
+                        ["extraction", "kg-quality", "kg-build", "query", "throughput"],
+                        ns.competitors, ns.output_dir, ns.verbose,
+                    )
+                elif ns.axis:
+                    _run_benchmark_live(ns.axis, ns.competitors, ns.output_dir, ns.verbose)
+
+            console.print()
+
+    except KeyboardInterrupt:
+        console.print(f"\n[{HINT}]bye[/]")
+
+
+def _do_insert(text: str) -> None:
+    """Insert text — used by interactive mode."""
+    from pipeline.litegraf import LiteGraf
+
+    with console.status("[bold cyan]Inserting…"):
+        kg = LiteGraf()
+        result = kg.insert(text)
+        kg.close()
+
+    t = Table(border_style="dim")
+    t.add_column("Metric", style="bold")
+    t.add_column("Value", justify="right")
+    t.add_row("Chunks", str(result.chunks_processed))
+    t.add_row("Entities", f"[cyan]{result.entities_extracted}[/]")
+    t.add_row("Relationships", f"[cyan]{result.relationships_extracted}[/]")
+    console.print(t)
+
+
+def _do_query(question: str, only_context: bool = False) -> None:
+    """Query KG — used by interactive mode."""
+    from pipeline.litegraf import LiteGraf
+
+    with console.status("[bold cyan]Querying…"):
+        kg = LiteGraf()
+        result = kg.query(question, only_context=only_context)
+        kg.close()
+
+    if result.answer:
+        console.print(Panel(result.answer, title="Answer", border_style="green"))
+    if result.context:
+        t = Table(title="Context", border_style="dim")
+        t.add_column("#", style="dim", width=3)
+        t.add_column("Score", justify="right", width=6)
+        t.add_column("Text")
+        for i, chunk in enumerate(result.context):
+            score = getattr(chunk, "score", 0.0)
+            text = getattr(chunk, "text", str(chunk))[:120] + "…"
+            t.add_row(str(i + 1), f"{score:.2f}", text)
+        console.print(t)
+
+
 # ── Entrypoint ────────────────────────────────────────────────────────────
 
 
@@ -585,18 +722,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if not args.command:
-        _print_banner()
-        console.print(f"[{TEXT2}]Usage:[/]  litegraf-tui <command>\n")
-        cmds = {
-            "bench":  "Run benchmarks with graphical output",
-            "show":   "Render a previous benchmark result JSON",
-            "insert": "Insert text into the knowledge graph",
-            "query":  "Query the knowledge graph",
-            "status": "Show system status and connectivity",
-        }
-        for name, desc in cmds.items():
-            console.print(f"  [{BLUE}]{name:<10}[/] [{TEXT2}]{desc}[/]")
-        console.print(f"\n[{HINT}]Run litegraf-tui <command> --help for details[/]")
+        _interactive()
         return
 
     if args.command == "bench":
