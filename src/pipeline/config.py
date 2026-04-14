@@ -28,6 +28,11 @@ class PipelineConfig:
     HUGGINGFACE_API_KEY = os.environ.get("HUGGINGFACE_API_KEY", "")
     SAGEMAKER_ENDPOINT_NAME = os.environ.get("SAGEMAKER_ENDPOINT_NAME", "")
 
+    # Cloudflare Workers AI
+    CF_ACCOUNT_ID = os.environ.get("CF_ACCOUNT_ID", "")
+    CF_API_TOKEN = os.environ.get("CF_API_TOKEN", "")
+    CF_MODEL = os.environ.get("CF_MODEL", "@cf/meta/llama-3.1-8b-instruct")
+
     # Vision
     VISION_MODEL_ID = os.environ.get("VISION_MODEL_ID", "")
 

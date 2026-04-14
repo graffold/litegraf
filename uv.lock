@@ -1693,6 +1693,7 @@ dependencies = [
     { name = "ollama" },
     { name = "orjson" },
     { name = "pyyaml" },
+    { name = "rich" },
     { name = "sentence-transformers" },
 ]
 
@@ -1746,6 +1747,7 @@ requires-dist = [
     { name = "pytest-timeout", marker = "extra == 'dev'", specifier = ">=2.0" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "redis", marker = "extra == 'redis'", specifier = ">=5.0.0" },
+    { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.15.0" },
     { name = "sentence-transformers", specifier = ">=3.0.0" },
 ]

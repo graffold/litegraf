@@ -11,6 +11,7 @@ module remains importable even when optional extras are missing.
 """
 
 __all__ = [
+    "CloudflareLLMProvider",
     "LocalEmbeddingProvider",
     "Neo4jGraphStore",
     "OllamaLLMProvider",
@@ -29,6 +30,11 @@ except ImportError:
 
 try:
     from pipeline.backends.ollama_llm import OllamaLLMProvider
+except ImportError:
+    pass
+
+try:
+    from pipeline.backends.cloudflare_llm import CloudflareLLMProvider
 except ImportError:
     pass
 

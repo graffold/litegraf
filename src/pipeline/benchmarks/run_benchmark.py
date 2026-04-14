@@ -58,11 +58,13 @@ logger = logging.getLogger("benchmarks.run_benchmark")
 
 
 def _llm_generate(prompt: str, *, timeout: int = 180) -> str:
-    """Call LLM via Ollama HTTP or AWS Bedrock depending on BENCH_LLM_SERVICE."""
+    """Call LLM via Ollama HTTP, AWS Bedrock, or Cloudflare Workers AI depending on BENCH_LLM_SERVICE."""
     service = os.environ.get("BENCH_LLM_SERVICE", "ollama")
 
     if service == "bedrock":
         return _bedrock_generate(prompt)
+    if service == "cloudflare":
+        return _cloudflare_generate(prompt)
     return _ollama_generate(prompt, timeout=timeout)
 
 
@@ -103,6 +105,29 @@ def _bedrock_generate(prompt: str) -> str:
         inferenceConfig={"maxTokens": 2048, "temperature": 0.1},
     )
     return resp["output"]["message"]["content"][0]["text"]
+
+
+def _cloudflare_generate(prompt: str) -> str:
+    """Call Cloudflare Workers AI REST API."""
+    account_id = os.environ.get("CF_ACCOUNT_ID", "")
+    api_token = os.environ.get("CF_API_TOKEN", "")
+    model = os.environ.get("BENCH_LLM_MODEL", "@cf/meta/llama-3.1-8b-instruct")
+    if not account_id or not api_token:
+        raise RuntimeError("Set CF_ACCOUNT_ID and CF_API_TOKEN")
+    payload = json.dumps({
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2048, "temperature": 0.1,
+    }).encode()
+    req = urllib.request.Request(
+        f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_token}"},
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        body = json.loads(resp.read())
+    if not body.get("success"):
+        raise RuntimeError(f"Cloudflare Workers AI error: {body.get('errors', [])}")
+    return body.get("result", {}).get("response", "")
 
 
 # Models comparable to Llama 3 8B — 2 per lab
@@ -692,8 +717,8 @@ def _run_kg_build(competitors: list[str]) -> dict[str, Any]:
         model = entry["model"]
         region = entry.get("region", "eu-north-1")
 
-        # Only bedrock and ollama are supported as LiteGraf LLM backends
-        if provider not in ("bedrock", "ollama"):
+        # Only bedrock, ollama, and cloudflare are supported as LiteGraf LLM backends
+        if provider not in ("bedrock", "ollama", "cloudflare"):
             logger.info("kg-build: SKIP %s (provider %s not supported)", label, provider)
             results["models"][label] = {"skipped": f"provider '{provider}' not wired for LiteGraf"}
             continue
@@ -733,6 +758,9 @@ def _run_kg_build(competitors: list[str]) -> dict[str, Any]:
             if provider == "bedrock":
                 from pipeline.backends.bedrock_llm import BedrockLLMProvider
                 lg._llm = BedrockLLMProvider(model=model, region_name=region)
+            elif provider == "cloudflare":
+                from pipeline.backends.cloudflare_llm import CloudflareLLMProvider
+                lg._llm = CloudflareLLMProvider(model=model)
         except Exception as e:
             logger.warning("kg-build: failed to init LiteGraf for %s: %s", label, e)
             results["models"][label] = {"error": str(e)}

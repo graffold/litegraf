@@ -77,6 +77,10 @@ MODELS: list[dict[str, Any]] = [
     # {"label": "qwen3-8b-or",        "provider": "openai",    "model": "qwen/qwen3-8b"},
     # {"label": "claude-haiku-direct", "provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
 
+    # --- Cloudflare Workers AI (set CF_ACCOUNT_ID + CF_API_TOKEN) ---
+    # {"label": "cf-llama3.1-8b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.1-8b-instruct"},
+    # {"label": "cf-mistral-7b",      "provider": "cloudflare", "model": "@cf/mistral/mistral-7b-instruct-v0.1"},
+
     # --- Local Ollama ---
     # {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
 ]
@@ -168,7 +172,28 @@ def _call_ollama(prompt: str, model: str, **_: Any) -> str:
         return json.loads(resp.read()).get("response", "")
 
 
-PROVIDERS = {"bedrock": _call_bedrock, "anthropic": _call_anthropic, "google": _call_google, "openai": _call_openai, "ollama": _call_ollama}
+def _call_cloudflare(prompt: str, model: str, **_: Any) -> str:
+    account_id = os.environ.get("CF_ACCOUNT_ID", "")
+    api_token = os.environ.get("CF_API_TOKEN", "")
+    if not account_id or not api_token:
+        raise RuntimeError("Set CF_ACCOUNT_ID and CF_API_TOKEN")
+    payload = json.dumps({
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2048, "temperature": 0.1,
+    }).encode()
+    req = urllib.request.Request(
+        f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+        data=payload,
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_token}"},
+    )
+    with urllib.request.urlopen(req, timeout=120) as resp:
+        body = json.loads(resp.read())
+    if not body.get("success"):
+        raise RuntimeError(f"Cloudflare Workers AI error: {body.get('errors', [])}")
+    return body.get("result", {}).get("response", "")
+
+
+PROVIDERS = {"bedrock": _call_bedrock, "anthropic": _call_anthropic, "google": _call_google, "openai": _call_openai, "ollama": _call_ollama, "cloudflare": _call_cloudflare}
 
 # ============================================================================
 # Benchmark runner
@@ -188,6 +213,8 @@ def _check_available(entry: dict) -> str | None:
             urllib.request.urlopen(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/tags", timeout=2)
         except Exception:
             return "Ollama not running"
+    if p == "cloudflare" and (not os.environ.get("CF_ACCOUNT_ID") or not os.environ.get("CF_API_TOKEN")):
+        return "CF_ACCOUNT_ID / CF_API_TOKEN not set"
     return None
 
 
@@ -311,7 +338,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Compare LLM providers on litegraf NER benchmarks")
     parser.add_argument("--docs", type=int, default=10, help="Documents per model (default: 10)")
     parser.add_argument("--dataset", default="bc5cdr", choices=["bc5cdr", "chemprot", "gad"])
-    parser.add_argument("--providers", nargs="*", help="Filter to providers (bedrock, anthropic, google, openai, ollama)")
+    parser.add_argument("--providers", nargs="*", help="Filter to providers (bedrock, anthropic, google, openai, ollama, cloudflare)")
     parser.add_argument("-o", "--output", help="Output JSON path")
     args = parser.parse_args()
 

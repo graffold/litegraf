@@ -13,6 +13,8 @@ from typing import Any
 
 import yaml
 
+from pipeline.interfaces import LLMProvider
+
 
 def _load_config(config_path: str | None) -> dict[str, Any]:
     """Load backend configuration from a YAML file.
@@ -33,7 +35,6 @@ def _build_backends(args: argparse.Namespace, config: dict[str, Any]) -> tuple:
     """
     from pipeline.backends.local_embeddings import LocalEmbeddingProvider
     from pipeline.backends.neo4j_store import Neo4jGraphStore
-    from pipeline.backends.ollama_llm import OllamaLLMProvider
     from pipeline.backends.sqlite_job_store import SQLiteJobStore
 
     graph_store = Neo4jGraphStore(
@@ -48,10 +49,26 @@ def _build_backends(args: argparse.Namespace, config: dict[str, Any]) -> tuple:
         model_name=args.embedding_model
         or config.get("embedding_model", "all-mpnet-base-v2")
     )
-    llm_provider = OllamaLLMProvider(
-        model=args.llm_model or config.get("llm_model", "llama3"),
-        base_url=args.llm_url or config.get("llm_url", "http://localhost:11434"),
-    )
+
+    llm_provider_name = getattr(args, "llm_provider", None) or config.get("llm_provider", "ollama")
+    llm_provider: LLMProvider
+    if llm_provider_name == "cloudflare":
+        from pipeline.backends.cloudflare_llm import CloudflareLLMProvider
+        llm_provider = CloudflareLLMProvider(
+            model=args.llm_model or config.get("llm_model", "@cf/meta/llama-3.1-8b-instruct"),
+        )
+    elif llm_provider_name == "bedrock":
+        from pipeline.backends.bedrock_llm import BedrockLLMProvider
+        llm_provider = BedrockLLMProvider(
+            model=args.llm_model or config.get("llm_model", "eu.amazon.nova-lite-v1:0"),
+        )
+    else:
+        from pipeline.backends.ollama_llm import OllamaLLMProvider
+        llm_provider = OllamaLLMProvider(
+            model=args.llm_model or config.get("llm_model", "llama3"),
+            base_url=args.llm_url or config.get("llm_url", "http://localhost:11434"),
+        )
+
     job_store = SQLiteJobStore()
     return graph_store, embedding_provider, llm_provider, job_store
 
@@ -100,6 +117,7 @@ def main() -> None:
     run_parser.add_argument("--graph-password")
     run_parser.add_argument("--graph-database", default="neo4j")
     run_parser.add_argument("--embedding-model", default="all-mpnet-base-v2")
+    run_parser.add_argument("--llm-provider", default="ollama", choices=["ollama", "bedrock", "cloudflare"])
     run_parser.add_argument("--llm-model", default="llama3")
     run_parser.add_argument("--llm-url", default="http://localhost:11434")
     run_parser.set_defaults(func=run_cmd)
@@ -112,6 +130,7 @@ def main() -> None:
     enrich_parser.add_argument("--graph-user", default="neo4j")
     enrich_parser.add_argument("--graph-password")
     enrich_parser.add_argument("--graph-database", default="neo4j")
+    enrich_parser.add_argument("--llm-provider", default="ollama", choices=["ollama", "bedrock", "cloudflare"])
     enrich_parser.add_argument("--llm-model", default="llama3")
     enrich_parser.add_argument("--llm-url", default="http://localhost:11434")
     enrich_parser.set_defaults(func=enrich_cmd)

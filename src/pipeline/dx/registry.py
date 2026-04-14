@@ -38,6 +38,12 @@ def _lazy_bedrock_llm() -> type[LLMProvider]:
     return BedrockLLMProvider
 
 
+def _lazy_cloudflare_llm() -> type[LLMProvider]:
+    from pipeline.backends.cloudflare_llm import CloudflareLLMProvider
+
+    return CloudflareLLMProvider
+
+
 def _lazy_sqlite() -> type[JobStore]:
     from pipeline.backends.sqlite_job_store import SQLiteJobStore
 
@@ -47,7 +53,7 @@ def _lazy_sqlite() -> type[JobStore]:
 # Mapping from shorthand → lazy loader returning the class
 _GRAPH_STORES: dict[str, Any] = {"neo4j": _lazy_neo4j}
 _EMBEDDING_PROVIDERS: dict[str, Any] = {"local": _lazy_local_embedding}
-_LLM_PROVIDERS: dict[str, Any] = {"ollama": _lazy_ollama, "bedrock": _lazy_bedrock_llm}
+_LLM_PROVIDERS: dict[str, Any] = {"ollama": _lazy_ollama, "bedrock": _lazy_bedrock_llm, "cloudflare": _lazy_cloudflare_llm}
 _JOB_STORES: dict[str, Any] = {"sqlite": _lazy_sqlite}
 
 
