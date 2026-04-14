@@ -1,0 +1,280 @@
+{
+  "metadata": {
+    "run_date": "2026-04-14T17:39:34.369111+00:00",
+    "graffold_version": "unknown",
+    "python_version": "3.13.5",
+    "hardware": {
+      "system": "Darwin",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_count": 10,
+      "os_version": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "ram_gb": 64,
+      "cpu_model": "Apple M1 Max"
+    },
+    "package_versions": {
+      "neo4j": "6.1.0",
+      "tiktoken": "0.12.0",
+      "orjson": "3.11.8",
+      "pydantic": "2.13.0"
+    },
+    "llm_model": "llama3",
+    "llm_service": "ollama",
+    "competitors": []
+  },
+  "axes": {
+    "extraction": {
+      "competitors": [],
+      "dataset": "bc5cdr",
+      "split": "test",
+      "num_documents": 50,
+      "litegraf": {
+        "num_documents": 50,
+        "entity_types": [
+          "Chemical",
+          "Disease"
+        ],
+        "exact_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 162,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Disease": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 257,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          },
+          "micro_avg": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 419,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        },
+        "partial_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 514,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            },
+            "Disease": {
+              "tp": 0,
+              "fp": 0,
+              "fn": 445,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0
+            }
+          },
+          "micro_avg": {
+            "tp": 0,
+            "fp": 0,
+            "fn": 959,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          }
+        }
+      },
+      "elapsed_sec": 0.175
+    },
+    "kg-quality": {
+      "consolidation": {
+        "consolidation_accuracy": 0.0,
+        "false_merge_rate": 0.0,
+        "merge_recall": 0.0,
+        "correct_merges": 0,
+        "false_merges": 0,
+        "total_predicted_pairs": 0,
+        "total_gt_pairs": 120,
+        "recalled_pairs": 0,
+        "num_predicted_clusters": 120,
+        "num_gt_clusters": 40
+      },
+      "mapping_rates": {
+        "uniprot_mapping_rate": 0.5833,
+        "mondo_mapping_rate": 0.7333,
+        "proteins_total": 60,
+        "proteins_with_uniprot": 35,
+        "diseases_total": 60,
+        "diseases_with_mondo": 44
+      },
+      "provenance": {
+        "provenance_completeness": 0.0,
+        "accuracy": 0.1667,
+        "tp": 0,
+        "fp": 0,
+        "tn": 5,
+        "fn": 25,
+        "total_chains": 30,
+        "gt_valid_chains": 25
+      },
+      "contradiction_detection": {
+        "recall": 0.0,
+        "precision": 0.0,
+        "f1": 0.0,
+        "tp": 0,
+        "fp": 0,
+        "fn": 30,
+        "total_pairs": 30,
+        "per_type": {
+          "association": {
+            "recall": 0.0,
+            "detected": 0,
+            "total": 8
+          },
+          "direction": {
+            "recall": 0.0,
+            "detected": 0,
+            "total": 9
+          },
+          "effect": {
+            "recall": 0.0,
+            "detected": 0,
+            "total": 13
+          }
+        }
+      },
+      "competitors": [],
+      "elapsed_sec": 0.118
+    },
+    "kg-build": {
+      "skipped": "Neo4j not reachable at bolt://localhost:7687: Couldn't connect to localhost:7687 (resolved to ('[::1]:7687', '127.0.0.1:7687')):\nFailed to establish connection to ResolvedIPv6Address(('::1', 7687, 0, 0)) (reason [Errno 61] Connection refused)\nFailed to establish connection to ResolvedIPv4Address(('127.0.0.1', 7687)) (reason [Errno 61] Connection refused)",
+      "competitors": [],
+      "elapsed_sec": 0.002
+    },
+    "query": {
+      "num_queries": 10,
+      "answer_relevance": {
+        "avg_score": 0.0,
+        "min_score": 0.0,
+        "max_score": 0.0,
+        "count": 0
+      },
+      "retrieval_recall": {
+        "avg_recall": 0.0,
+        "count": 0,
+        "total_expected": 0,
+        "total_retrieved": 0
+      },
+      "multi_hop_success": {
+        "total": 5,
+        "successful": 0,
+        "failed": 5,
+        "success_rate": 0.0
+      },
+      "mode_routing": {
+        "total": 10,
+        "correct": 6,
+        "accuracy": 0.6,
+        "per_mode": {
+          "global": {
+            "total": 3,
+            "correct": 0,
+            "accuracy": 0.0
+          },
+          "hybrid": {
+            "total": 1,
+            "correct": 0,
+            "accuracy": 0.0
+          },
+          "local": {
+            "total": 6,
+            "correct": 6,
+            "accuracy": 1.0
+          }
+        }
+      },
+      "latency": {
+        "count": 0,
+        "p50_ms": 0.0,
+        "p95_ms": 0.0,
+        "p99_ms": 0.0,
+        "avg_ms": 0.0
+      },
+      "cache_impact": {
+        "total_queries": 0,
+        "cache_hits": 0,
+        "cache_misses": 0,
+        "hit_rate": 0.0,
+        "avg_hit_latency_ms": 0.0,
+        "avg_miss_latency_ms": 0.0,
+        "speedup_ratio": 0.0
+      },
+      "competitors": [],
+      "elapsed_sec": 0.041
+    },
+    "throughput": {
+      "num_records": 3,
+      "ingestion_throughput": {
+        "pubmed": {
+          "total_docs": 50,
+          "total_sec": 0.55,
+          "docs_per_min": 5413.17
+        },
+        "overall": {
+          "total_docs": 50,
+          "total_sec": 0.55,
+          "docs_per_min": 5413.17
+        }
+      },
+      "embedding_rate": {
+        "total_vectors": 50,
+        "total_sec": 0.55,
+        "vectors_per_sec": 90.22
+      },
+      "pipeline_time": {
+        "total_docs": 50,
+        "total_sec": 1.29,
+        "by_phase": {
+          "embedding": {
+            "total_docs": 50,
+            "total_sec": 0.55
+          },
+          "extraction": {
+            "total_docs": 0,
+            "total_sec": 0.09
+          },
+          "full": {
+            "total_docs": 0,
+            "total_sec": 0.64
+          }
+        }
+      },
+      "memory_peak": {
+        "max_rss_mb": 555.7,
+        "avg_rss_mb": 414.59,
+        "min_rss_mb": 132.38,
+        "count": 3
+      },
+      "token_cost": {
+        "ollama": {
+          "total_prompt_tokens": 22100,
+          "total_completion_tokens": 0,
+          "total_docs": 0,
+          "total_cost_usd": 0.0,
+          "cost_per_1k_docs_usd": 0.0
+        }
+      },
+      "competitors": [],
+      "dataset": "bc5cdr",
+      "extraction_success_rate": 0.0,
+      "elapsed_sec": 8.427
+    }
+  }
+}

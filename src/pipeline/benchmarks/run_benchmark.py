@@ -47,7 +47,7 @@ _SRC_DIR = str(Path(__file__).resolve().parent.parent.parent)
 if _SRC_DIR not in sys.path:
     sys.path.insert(0, _SRC_DIR)
 
-VALID_AXES = ("extraction", "kg-quality", "kg-build", "query", "throughput")
+VALID_AXES = ("extraction", "kg-quality", "query", "throughput")
 
 logger = logging.getLogger("benchmarks.run_benchmark")
 
@@ -841,7 +841,6 @@ def _run_kg_build(competitors: list[str]) -> dict[str, Any]:
 AXIS_RUNNERS: dict[str, Any] = {
     "extraction": _run_extraction,
     "kg-quality": _run_kg_quality,
-    "kg-build": _run_kg_build,
     "query": _run_query,
     "throughput": _run_throughput,
 }

@@ -298,7 +298,6 @@ AXIS_RENDERERS = {
     "throughput": _render_throughput,
     "query": _render_query,
     "kg-quality": _render_kg_quality,
-    "kg-build": _render_kg_build,
 }
 
 
@@ -706,7 +705,7 @@ def main() -> None:
     # bench
     bp = subs.add_parser("bench", help="Run benchmarks with graphical output")
     bp.add_argument("--all", action="store_true", help="Run all benchmark axes")
-    bp.add_argument("--axis", action="append", choices=["extraction", "kg-quality", "kg-build", "query", "throughput"])
+    bp.add_argument("--axis", action="append", choices=["extraction", "kg-quality", "query", "throughput"])
     bp.add_argument("--competitors", nargs="*", default=[])
     bp.add_argument("--compare-models", action="store_true", help="Run multi-model provider comparison")
     bp.add_argument("--docs", type=int, default=10, help="Documents per model (for --compare-models)")
@@ -742,7 +741,7 @@ def main() -> None:
             _run_compare_models_live(args.docs, args.dataset, args.providers)
         elif args.all:
             _run_benchmark_live(
-                ["extraction", "kg-quality", "kg-build", "query", "throughput"],
+                ["extraction", "kg-quality", "query", "throughput"],
                 args.competitors, args.output_dir, args.verbose,
             )
         elif args.axis:
