@@ -509,12 +509,16 @@ def _cmd_status(args: argparse.Namespace) -> None:
     # Benchmark datasets
     ds_branch = tree.add("Benchmark datasets")
     data_dir = Path(__file__).resolve().parent / "benchmarks" / "data"
+    all_present = True
     for name in ("bc5cdr", "chemprot", "gad"):
         p = data_dir / name
         if p.exists():
             ds_branch.add(f"[green]✓[/green] {name}")
         else:
-            ds_branch.add(f"[dim]○[/dim] {name} (not downloaded)")
+            ds_branch.add(f"[dim]○[/dim] {name}")
+            all_present = False
+    if not all_present:
+        ds_branch.add(f"[{HINT}]auto-downloaded on first benchmark run[/]")
 
     console.print(tree)
 
