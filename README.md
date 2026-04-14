@@ -1,5 +1,22 @@
 # litegraf
 
+```
+▀▀      ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀  ▀▀▀▀▀  ▀▀▀▀▀▀   ▀▀▀▀▀  ▀▀▀▀▀▀▀
+▀▀        ▀▀▀     ▀▀▀   ▀▀      ▀▀      ▀▀   ▀▀ ▀▀   ▀▀ ▀▀
+▀▀        ▀▀▀     ▀▀▀   ▀▀▀▀▀   ▀▀  ▀▀▀ ▀▀▀▀▀▀  ▀▀▀▀▀▀▀ ▀▀▀▀▀
+▀▀        ▀▀▀     ▀▀▀   ▀▀      ▀▀   ▀▀ ▀▀  ▀▀  ▀▀   ▀▀ ▀▀
+▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀   ▀▀▀   ▀▀▀▀▀▀▀  ▀▀▀▀▀▀ ▀▀   ▀▀ ▀▀   ▀▀ ▀▀
+  v0.1.0  lightweight knowledge graph benchmark suite
+
+Usage:  litegraf-tui <command>
+
+  bench      Run benchmarks with graphical output
+  show       Render a previous benchmark result JSON
+  insert     Insert text into the knowledge graph
+  query      Query the knowledge graph
+  status     Show system status and connectivity
+```
+
 A lightweight, pluggable knowledge graph ingestion pipeline. Feed it text, PDFs, or tabular data — it extracts entities and relationships using LLMs and stores them in a graph database.
 
 One class. Sensible defaults. Works out of the box.
