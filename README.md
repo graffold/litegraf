@@ -8,6 +8,13 @@
 ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀   ▀▀▀   ▀▀▀▀▀▀▀  ▀▀▀▀▀▀ ▀▀   ▀▀ ▀▀   ▀▀ ▀▀
   v0.1.0  lightweight knowledge graph benchmark suite
 
+CLI
+  bench      Run benchmarks with graphical output
+  show       Render a previous benchmark result JSON
+  insert     Insert text into the knowledge graph
+  query      Query the knowledge graph
+  status     Show system status and connectivity
+
 Interactive mode  Ctrl+C to exit
 
   1  Show system status

@@ -566,16 +566,28 @@ def _interactive() -> None:
     """Interactive REPL — stays alive until Ctrl+C."""
     _print_banner()
 
-    console.print(f"[{EMERALD}]Interactive mode[/]  [{HINT}]Ctrl+C to exit[/]\n")
+    # CLI subcommands in blue
+    console.print(f"[{BLUE}]CLI[/]")
+    cli_cmds = {
+        "bench":  "Run benchmarks with graphical output",
+        "show":   "Render a previous benchmark result JSON",
+        "insert": "Insert text into the knowledge graph",
+        "query":  "Query the knowledge graph",
+        "status": "Show system status and connectivity",
+    }
+    for name, desc in cli_cmds.items():
+        console.print(f"  [{BLUE}]{name:<10}[/] [{HINT}]{desc}[/]")
 
+    # Interactive menu in violet
+    console.print(f"\n[{VIOLET}]Interactive mode[/]  [{HINT}]Ctrl+C to exit[/]\n")
     for key, (_, desc) in _MENU.items():
-        console.print(f"  [{BLUE}]{key}[/]  [{TEXT2}]{desc}[/]")
+        console.print(f"  [{VIOLET}]{key}[/]  [{TEXT2}]{desc}[/]")
     console.print()
 
     try:
         while True:
             try:
-                choice = Prompt.ask(f"[{VIOLET}]litegraf[/]", choices=[*_MENU, "q", "quit", "help"], show_choices=False, default="help")
+                choice = Prompt.ask(f"[{EMERALD}]litegraf ❯[/]", choices=[*_MENU, "q", "quit", "help"], show_choices=False, default="help")
             except EOFError:
                 break
 
@@ -584,8 +596,8 @@ def _interactive() -> None:
 
             if choice == "help":
                 for key, (_, desc) in _MENU.items():
-                    console.print(f"  [{BLUE}]{key}[/]  [{TEXT2}]{desc}[/]")
-                console.print(f"  [{BLUE}]q[/]  [{TEXT2}]Quit[/]")
+                    console.print(f"  [{VIOLET}]{key}[/]  [{TEXT2}]{desc}[/]")
+                console.print(f"  [{VIOLET}]q[/]  [{TEXT2}]Quit[/]")
                 continue
 
             cmd_str, _ = _MENU[choice]
