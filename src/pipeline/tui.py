@@ -463,7 +463,7 @@ def _cmd_query(args: argparse.Namespace) -> None:
 
 
 def _cmd_status(args: argparse.Namespace) -> None:
-    """Show system status: backends, connectivity, versions."""
+    """Show system status: LLM, embeddings, datasets."""
     _print_banner()
     console.print()
 
@@ -472,21 +472,8 @@ def _cmd_status(args: argparse.Namespace) -> None:
     # Python
     tree.add(f"Python {sys.version.split()[0]}")
 
-    # Neo4j
-    neo4j_branch = tree.add("Neo4j")
-    try:
-        from neo4j import GraphDatabase
-
-        uri = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
-        driver = GraphDatabase.driver(uri, auth=("neo4j", os.environ.get("NEO4J_PASSWORD", "password")))
-        driver.verify_connectivity()
-        driver.close()
-        neo4j_branch.add(f"[green]✓[/green] Connected ({uri})")
-    except Exception as e:
-        neo4j_branch.add(f"[red]✗[/red] {e}")
-
     # Ollama
-    ollama_branch = tree.add("Ollama")
+    ollama_branch = tree.add("LLM (Ollama)")
     try:
         import urllib.request
 
@@ -499,6 +486,16 @@ def _cmd_status(args: argparse.Namespace) -> None:
             ollama_branch.add(f"  {m}")
     except Exception as e:
         ollama_branch.add(f"[red]✗[/red] {e}")
+
+    # Bedrock
+    bedrock_branch = tree.add("LLM (Bedrock)")
+    try:
+        import boto3
+        sts = boto3.client("sts")
+        identity = sts.get_caller_identity()
+        bedrock_branch.add(f"[green]✓[/green] {identity.get('Account', '?')} ({identity.get('Arn', '').split('/')[-1]})")
+    except Exception as e:
+        bedrock_branch.add(f"[dim]○[/dim] {str(e)[:60]}")
 
     # Sentence-transformers
     st_branch = tree.add("Embeddings")
