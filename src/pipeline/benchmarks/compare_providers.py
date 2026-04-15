@@ -135,8 +135,8 @@ MODELS: list[dict[str, Any]] = [
     {"label": "cf-glm-4.7-flash",   "provider": "cloudflare", "model": "@cf/zai-org/glm-4.7-flash"},
     {"label": "cf-granite-micro",   "provider": "cloudflare", "model": "@cf/ibm-granite/granite-4.0-h-micro"},
 
-    # --- Local Ollama ---
-    {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
+    # --- Local Ollama (uncomment to include) ---
+    # {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
 ]
 
 # ============================================================================
@@ -239,11 +239,18 @@ def _call_cloudflare(prompt: str, model: str, **_: Any) -> str:
         data=payload,
         headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_token}"},
     )
-    with urllib.request.urlopen(req, timeout=120) as resp:
-        body = json.loads(resp.read())
-    if not body.get("success"):
-        raise RuntimeError(f"Cloudflare Workers AI error: {body.get('errors', [])}")
-    return body.get("result", {}).get("response", "")
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                body = json.loads(resp.read())
+            if not body.get("success"):
+                raise RuntimeError(f"Cloudflare Workers AI error: {body.get('errors', [])}")
+            return body.get("result", {}).get("response", "")
+        except urllib.error.HTTPError as e:
+            if e.code == 429 and attempt < 2:
+                time.sleep(2 ** attempt + 1)
+                continue
+            raise
 
 
 PROVIDERS = {"bedrock": _call_bedrock, "anthropic": _call_anthropic, "google": _call_google, "openai": _call_openai, "ollama": _call_ollama, "cloudflare": _call_cloudflare}

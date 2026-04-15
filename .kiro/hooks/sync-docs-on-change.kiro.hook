@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Sync Docs on Source Change",
+  "description": "When Python source files or config files are edited, asks the agent to review the change and update the README.md and docs/ folder if the change affects public API, CLI usage, configuration, or any documented behavior.",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "*.py",
+      "pyproject.toml",
+      "*.yaml",
+      "*.yml",
+      "*.toml",
+      "*.cfg"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "A source or config file was just edited. Review the change and determine if it affects anything documented in README.md or docs/index.html — such as public API, CLI commands, configuration options, installation instructions, usage examples, or feature descriptions. If so, update the relevant documentation to stay in sync. If the change is purely internal (e.g., refactoring, private helpers, test utilities), no documentation update is needed — just say so briefly."
+  }
+}
