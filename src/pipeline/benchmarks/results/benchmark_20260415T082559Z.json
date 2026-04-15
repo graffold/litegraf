@@ -1,0 +1,166 @@
+{
+  "metadata": {
+    "run_date": "2026-04-15T08:25:52.064013+00:00",
+    "graffold_version": "unknown",
+    "python_version": "3.13.5",
+    "hardware": {
+      "system": "Darwin",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_count": 10,
+      "os_version": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "ram_gb": 64,
+      "cpu_model": "Apple M1 Max"
+    },
+    "package_versions": {
+      "neo4j": "6.1.0",
+      "tiktoken": "0.12.0",
+      "orjson": "3.11.8",
+      "pydantic": "2.13.0"
+    },
+    "llm_model": "llama3",
+    "llm_service": "bedrock",
+    "competitors": [
+      "nano-graphrag"
+    ]
+  },
+  "axes": {
+    "extraction": {
+      "competitors": [
+        "nano-graphrag"
+      ],
+      "dataset": "bc5cdr",
+      "split": "test",
+      "num_documents": 3,
+      "litegraf": {
+        "num_documents": 3,
+        "entity_types": [
+          "Chemical",
+          "Disease"
+        ],
+        "exact_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 6,
+              "fp": 1,
+              "fn": 5,
+              "precision": 0.8571,
+              "recall": 0.5455,
+              "f1": 0.6667
+            },
+            "Disease": {
+              "tp": 4,
+              "fp": 3,
+              "fn": 4,
+              "precision": 0.5714,
+              "recall": 0.5,
+              "f1": 0.5333
+            }
+          },
+          "micro_avg": {
+            "tp": 10,
+            "fp": 8,
+            "fn": 9,
+            "precision": 0.5556,
+            "recall": 0.5263,
+            "f1": 0.5405
+          }
+        },
+        "partial_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 8,
+              "fp": 1,
+              "fn": 17,
+              "precision": 0.8889,
+              "recall": 0.32,
+              "f1": 0.4706
+            },
+            "Disease": {
+              "tp": 5,
+              "fp": 2,
+              "fn": 10,
+              "precision": 0.7143,
+              "recall": 0.3333,
+              "f1": 0.4545
+            }
+          },
+          "micro_avg": {
+            "tp": 13,
+            "fp": 7,
+            "fn": 27,
+            "precision": 0.65,
+            "recall": 0.325,
+            "f1": 0.4333
+          }
+        }
+      },
+      "nano-graphrag": {
+        "error": "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable"
+      },
+      "elapsed_sec": 3.756
+    },
+    "kg-quality": {
+      "consolidation": {
+        "consolidation_accuracy": 1.0,
+        "false_merge_rate": 0.0,
+        "merge_recall": 0.075,
+        "correct_merges": 9,
+        "false_merges": 0,
+        "total_predicted_pairs": 9,
+        "total_gt_pairs": 120,
+        "recalled_pairs": 9,
+        "num_predicted_clusters": 3,
+        "num_gt_clusters": 40
+      },
+      "mapping_rates": {
+        "uniprot_mapping_rate": 0.5833,
+        "mondo_mapping_rate": 0.7333,
+        "proteins_total": 60,
+        "proteins_with_uniprot": 35,
+        "diseases_total": 60,
+        "diseases_with_mondo": 44
+      },
+      "provenance": {
+        "provenance_completeness": 0.12,
+        "accuracy": 0.2667,
+        "tp": 3,
+        "fp": 0,
+        "tn": 5,
+        "fn": 22,
+        "total_chains": 30,
+        "gt_valid_chains": 25
+      },
+      "contradiction_detection": {
+        "recall": 0.1,
+        "precision": 1.0,
+        "f1": 0.1818,
+        "tp": 3,
+        "fp": 0,
+        "fn": 27,
+        "total_pairs": 30,
+        "per_type": {
+          "association": {
+            "recall": 0.0,
+            "detected": 0,
+            "total": 8
+          },
+          "direction": {
+            "recall": 0.1111,
+            "detected": 1,
+            "total": 9
+          },
+          "effect": {
+            "recall": 0.1538,
+            "detected": 2,
+            "total": 13
+          }
+        }
+      },
+      "competitors": [
+        "nano-graphrag"
+      ],
+      "elapsed_sec": 3.188
+    }
+  }
+}

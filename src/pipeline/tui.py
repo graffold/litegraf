@@ -92,6 +92,17 @@ def _detect_status() -> dict[str, tuple[str, str]]:
     except Exception:
         status["Bedrock"] = ("no credentials", "aws sso login")
 
+    # Cloudflare
+    try:
+        from pipeline.benchmarks.compare_providers import _resolve_cf_creds
+        acct, tok = _resolve_cf_creds()
+        if acct and tok:
+            status["Cloudflare"] = (acct, "Workers AI")
+        else:
+            status["Cloudflare"] = ("no credentials", "wrangler login")
+    except Exception:
+        status["Cloudflare"] = ("not configured", "wrangler login")
+
     # Embeddings
     try:
         import sentence_transformers
@@ -463,42 +474,38 @@ def _show_results(path: str) -> None:
 # ── Insert / Query commands ───────────────────────────────────────────────
 
 
-def _cmd_insert(args: argparse.Namespace) -> None:
+# ── Shared commands (used by both CLI and interactive) ────────────────────
+
+
+def _do_insert(text: str) -> None:
     from pipeline.litegraf import LiteGraf
 
-    _print_banner()
-    console.print()
-
-    with console.status("[bold cyan]Inserting…"):
+    with console.status(f"[{BLUE}]Inserting…[/]"):
         kg = LiteGraf()
-        result = kg.insert(args.text)
+        result = kg.insert(text)
         kg.close()
 
-    t = Table(title="Insert Result", border_style="dim")
+    t = Table(border_style="dim")
     t.add_column("Metric", style="bold")
     t.add_column("Value", justify="right")
-    t.add_row("Chunks processed", str(result.chunks_processed))
-    t.add_row("Entities extracted", f"[cyan]{result.entities_extracted}[/]")
-    t.add_row("Relationships", f"[cyan]{result.relationships_extracted}[/]")
+    t.add_row("Chunks", str(result.chunks_processed))
+    t.add_row("Entities", f"[{EMERALD}]{result.entities_extracted}[/]")
+    t.add_row("Relationships", f"[{EMERALD}]{result.relationships_extracted}[/]")
     console.print(t)
 
 
-def _cmd_query(args: argparse.Namespace) -> None:
+def _do_query(question: str, only_context: bool = False) -> None:
     from pipeline.litegraf import LiteGraf
 
-    _print_banner()
-    console.print()
-
-    with console.status("[bold cyan]Querying…"):
+    with console.status(f"[{BLUE}]Querying…[/]"):
         kg = LiteGraf()
-        result = kg.query(args.question, only_context=args.only_context)
+        result = kg.query(question, only_context=only_context)
         kg.close()
 
     if result.answer:
         console.print(Panel(result.answer, title="Answer", border_style="green"))
-
     if result.context:
-        t = Table(title="Context Chunks", border_style="dim")
+        t = Table(title="Context", border_style="dim")
         t.add_column("#", style="dim", width=3)
         t.add_column("Score", justify="right", width=6)
         t.add_column("Text")
@@ -509,78 +516,122 @@ def _cmd_query(args: argparse.Namespace) -> None:
         console.print(t)
 
 
-def _cmd_status(args: argparse.Namespace) -> None:
-    """Show system status: LLM, embeddings, datasets."""
-    _print_banner()
+# ── Guided benchmark config builder ──────────────────────────────────────
+
+
+def _pick_multi(label: str, options: dict[str, str], default: str = "") -> list[str]:
+    for k, v in options.items():
+        console.print(f"    [{VIOLET}]{k}[/] [{HINT}]{v}[/]")
+    raw = Prompt.ask(f"  [{HINT}]{label} (comma-separated)[/]", default=default)
+    keys = [k.strip() for k in raw.split(",")]
+    return [options[k] for k in keys if k in options]
+
+
+def _pick_one(label: str, options: dict[str, str], default: str = "") -> str:
+    for k, v in options.items():
+        console.print(f"    [{VIOLET}]{k}[/] [{HINT}]{v}[/]")
+    raw = Prompt.ask(f"  [{HINT}]{label}[/]", default=default)
+    return options.get(raw.strip(), options.get(default, ""))
+
+
+def _configure_benchmark() -> dict[str, Any] | None:
+    """Guided benchmark setup — returns config dict or None to cancel."""
+    console.print(f"\n  [{BLUE}]Configure Benchmark[/]\n")
+
+    # A) Mode
+    console.print(f"  [{BLUE}]A) Benchmark type[/]")
+    mode = _pick_one("Type", {
+        "1": "axes",
+        "2": "compare",
+    }, default="1")
+
+    if mode == "compare":
+        # Model comparison — ask dataset + docs
+        console.print(f"\n  [{BLUE}]B) Dataset[/]")
+        dataset = _pick_one("Dataset", {
+            "1": "bc5cdr",
+            "2": "chemprot",
+            "3": "gad",
+        }, default="1")
+
+        console.print(f"\n  [{BLUE}]C) Documents per model[/]")
+        docs = int(Prompt.ask(f"  [{HINT}]Docs[/]", default="10"))
+
+        console.print(f"\n  [{BLUE}]D) Providers[/]")
+        providers = _pick_multi("Providers", {
+            "1": "bedrock",
+            "2": "cloudflare",
+            "3": "ollama",
+        }, default="1,2,3")
+
+        console.print()
+        return {"mode": "compare", "dataset": dataset, "docs": docs, "providers": providers or None}
+
+    # Axis benchmark
+    console.print(f"\n  [{BLUE}]B) Axes[/]")
+    axes = _pick_multi("Axes", {
+        "1": "extraction",
+        "2": "kg-quality",
+        "3": "query",
+        "4": "throughput",
+    }, default="1,2,3,4")
+    if not axes:
+        axes = ["extraction", "kg-quality", "query", "throughput"]
+
+    console.print(f"\n  [{BLUE}]C) Dataset[/]")
+    dataset = _pick_one("Dataset", {
+        "1": "bc5cdr",
+        "2": "chemprot",
+        "3": "gad",
+    }, default="1")
+
+    console.print(f"\n  [{BLUE}]D) Max documents[/]")
+    docs = int(Prompt.ask(f"  [{HINT}]Docs[/]", default="10"))
+
+    console.print(f"\n  [{BLUE}]E) LLM service[/]")
+    service = _pick_one("Service", {
+        "1": "bedrock",
+        "2": "ollama",
+        "3": "cloudflare",
+    }, default="1")
+
+    console.print(f"\n  [{BLUE}]F) Competitors[/]")
+    competitors = _pick_multi("Include", {
+        "1": "nano-graphrag",
+        "2": "lightrag",
+        "3": "ms-graphrag",
+    }, default="")
+
     console.print()
-
-    tree = Tree("[bold]System Status[/bold]")
-
-    # Python
-    tree.add(f"Python {sys.version.split()[0]}")
-
-    # Ollama
-    ollama_branch = tree.add("LLM (Ollama)")
-    try:
-        import urllib.request
-
-        url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-        with urllib.request.urlopen(f"{url}/api/tags", timeout=2) as resp:  # noqa: S310
-            tags = json.loads(resp.read())
-        models = [m["name"] for m in tags.get("models", [])][:5]
-        ollama_branch.add(f"[green]✓[/green] {url} — {len(tags.get('models', []))} models")
-        for m in models:
-            ollama_branch.add(f"  {m}")
-    except Exception as e:
-        ollama_branch.add(f"[red]✗[/red] {e}")
-
-    # Bedrock
-    bedrock_branch = tree.add("LLM (Bedrock)")
-    try:
-        import boto3
-        sts = boto3.client("sts")
-        identity = sts.get_caller_identity()
-        bedrock_branch.add(f"[green]✓[/green] {identity.get('Account', '?')} ({identity.get('Arn', '').split('/')[-1]})")
-    except Exception as e:
-        bedrock_branch.add(f"[dim]○[/dim] {str(e)[:60]}")
-
-    # Sentence-transformers
-    st_branch = tree.add("Embeddings")
-    try:
-        import sentence_transformers
-
-        st_branch.add(f"[green]✓[/green] sentence-transformers {sentence_transformers.__version__}")
-    except ImportError:
-        st_branch.add("[red]✗[/red] sentence-transformers not installed")
-
-    # Benchmark datasets
-    ds_branch = tree.add("Benchmark datasets")
-    data_dir = Path(__file__).resolve().parent / "benchmarks" / "data"
-    all_present = True
-    for name in ("bc5cdr", "chemprot", "gad"):
-        p = data_dir / name
-        if p.exists():
-            ds_branch.add(f"[green]✓[/green] {name}")
-        else:
-            ds_branch.add(f"[dim]○[/dim] {name}")
-            all_present = False
-    if not all_present:
-        ds_branch.add(f"[{HINT}]auto-downloaded on first benchmark run[/]")
-
-    console.print(tree)
+    return {
+        "mode": "axes", "axes": axes, "dataset": dataset, "docs": docs,
+        "service": service, "competitors": competitors,
+    }
 
 
-# ── Interactive mode ───────────────────────────────────────────────────────
+def _run_configured_benchmark(cfg: dict[str, Any]) -> None:
+    """Execute a benchmark from the guided config."""
+    output_dir = Path(__file__).resolve().parent / "benchmarks" / "results"
+
+    if cfg["mode"] == "compare":
+        provs = cfg.get("providers")
+        _run_compare_models_live(cfg["docs"], cfg["dataset"], provs)
+    else:
+        os.environ["BENCH_MAX_DOCS"] = str(cfg["docs"])
+        os.environ["BENCH_DATASET"] = cfg["dataset"]
+        os.environ["BENCH_LLM_SERVICE"] = cfg.get("service", "bedrock")
+        _run_benchmark_live(cfg["axes"], cfg.get("competitors", []), output_dir, verbose=False)
+
+
+# ── Interactive mode ──────────────────────────────────────────────────────
 
 _MENU = {
-    "1": ("status",              "Show system status"),
-    "2": ("bench --all",         "Run all benchmarks"),
-    "3": ("bench --axis extraction", "Benchmark: extraction only"),
-    "4": ("bench --axis throughput", "Benchmark: throughput only"),
-    "5": ("bench --compare-models",  "Compare LLM providers"),
-    "6": ("insert",              "Insert text into KG"),
-    "7": ("query",               "Query the KG"),
-    "8": ("show",                "Render a result JSON"),
+    "1": ("status",    "Show system status"),
+    "2": ("bench",     "Run benchmark (guided setup)"),
+    "3": ("insert",    "Insert text into KG"),
+    "4": ("query",     "Query the KG"),
+    "5": ("show",      "Render a result JSON"),
+    "6": ("dashboard", "Open HTML dashboard"),
 }
 
 
@@ -588,20 +639,7 @@ def _interactive() -> None:
     """Interactive REPL — stays alive until Ctrl+C."""
     _print_banner()
 
-    # CLI subcommands in blue
-    console.print(f"[{BLUE}]CLI[/]")
-    cli_cmds = {
-        "bench":  "Run benchmarks with graphical output",
-        "show":   "Render a previous benchmark result JSON",
-        "insert": "Insert text into the knowledge graph",
-        "query":  "Query the knowledge graph",
-        "status": "Show system status and connectivity",
-    }
-    for name, desc in cli_cmds.items():
-        console.print(f"  [{BLUE}]{name:<10}[/] [{HINT}]{desc}[/]")
-
-    # Interactive menu in violet
-    console.print(f"\n[{VIOLET}]Interactive mode[/]  [{HINT}]Ctrl+C to exit[/]\n")
+    console.print(f"[{VIOLET}]Interactive mode[/]  [{HINT}]Ctrl+C to exit[/]\n")
     for key, (_, desc) in _MENU.items():
         console.print(f"  [{VIOLET}]{key}[/]  [{TEXT2}]{desc}[/]")
     console.print()
@@ -622,54 +660,42 @@ def _interactive() -> None:
                 console.print(f"  [{VIOLET}]q[/]  [{TEXT2}]Quit[/]")
                 continue
 
-            cmd_str, _ = _MENU[choice]
+            cmd, _ = _MENU[choice]
 
-            if cmd_str == "insert":
-                text = Prompt.ask(f"  [{TEXT2}]Text to insert[/]")
-                if not text:
-                    continue
-                _do_insert(text)
+            if cmd == "status":
+                _print_banner()
 
-            elif cmd_str == "query":
-                question = Prompt.ask(f"  [{TEXT2}]Question[/]")
-                if not question:
-                    continue
-                _do_query(question)
+            elif cmd == "bench":
+                cfg = _configure_benchmark()
+                if cfg:
+                    _run_configured_benchmark(cfg)
 
-            elif cmd_str == "show":
-                path = Prompt.ask(f"  [{TEXT2}]Path to result JSON[/]")
-                if not path:
-                    continue
-                try:
-                    _show_results(path)
-                except Exception as e:
-                    console.print(f"[red]{e}[/]")
+            elif cmd == "insert":
+                text = Prompt.ask(f"  [{HINT}]Text to insert[/]")
+                if text:
+                    _do_insert(text)
 
-            elif cmd_str == "status":
-                _cmd_status(argparse.Namespace())
+            elif cmd == "query":
+                question = Prompt.ask(f"  [{HINT}]Question[/]")
+                if question:
+                    _do_query(question)
 
-            elif cmd_str.startswith("bench"):
-                parts = cmd_str.split()
-                ns = argparse.Namespace(
-                    all="--all" in parts,
-                    axis=[p for prev, p in zip(parts, parts[1:]) if prev == "--axis"] or None,
-                    compare_models="--compare-models" in parts,
-                    competitors=[],
-                    docs=10,
-                    dataset="bc5cdr",
-                    providers=None,
-                    output_dir=Path(__file__).resolve().parent / "benchmarks" / "results",
-                    verbose=False,
-                )
-                if ns.compare_models:
-                    _run_compare_models_live(ns.docs, ns.dataset, ns.providers)
-                elif ns.all:
-                    _run_benchmark_live(
-                        ["extraction", "kg-quality", "query", "throughput"],
-                        ns.competitors, ns.output_dir, ns.verbose,
-                    )
-                elif ns.axis:
-                    _run_benchmark_live(ns.axis, ns.competitors, ns.output_dir, ns.verbose)
+            elif cmd == "show":
+                path = Prompt.ask(f"  [{HINT}]Path to result JSON[/]")
+                if path:
+                    try:
+                        _show_results(path)
+                    except Exception as e:
+                        console.print(f"[red]{e}[/]")
+
+            elif cmd == "dashboard":
+                import subprocess
+                html = Path(__file__).resolve().parent.parent.parent / "docs" / "index.html"
+                if html.exists():
+                    subprocess.run(["open", str(html)], check=False)
+                    console.print(f"  [{EMERALD}]✓[/] Opened {html.name}")
+                else:
+                    console.print(f"[red]Dashboard not found at {html}[/]")
 
             console.print()
 
@@ -677,48 +703,7 @@ def _interactive() -> None:
         console.print(f"\n[{HINT}]bye[/]")
 
 
-def _do_insert(text: str) -> None:
-    """Insert text — used by interactive mode."""
-    from pipeline.litegraf import LiteGraf
-
-    with console.status("[bold cyan]Inserting…"):
-        kg = LiteGraf()
-        result = kg.insert(text)
-        kg.close()
-
-    t = Table(border_style="dim")
-    t.add_column("Metric", style="bold")
-    t.add_column("Value", justify="right")
-    t.add_row("Chunks", str(result.chunks_processed))
-    t.add_row("Entities", f"[cyan]{result.entities_extracted}[/]")
-    t.add_row("Relationships", f"[cyan]{result.relationships_extracted}[/]")
-    console.print(t)
-
-
-def _do_query(question: str, only_context: bool = False) -> None:
-    """Query KG — used by interactive mode."""
-    from pipeline.litegraf import LiteGraf
-
-    with console.status("[bold cyan]Querying…"):
-        kg = LiteGraf()
-        result = kg.query(question, only_context=only_context)
-        kg.close()
-
-    if result.answer:
-        console.print(Panel(result.answer, title="Answer", border_style="green"))
-    if result.context:
-        t = Table(title="Context", border_style="dim")
-        t.add_column("#", style="dim", width=3)
-        t.add_column("Score", justify="right", width=6)
-        t.add_column("Text")
-        for i, chunk in enumerate(result.context):
-            score = getattr(chunk, "score", 0.0)
-            text = getattr(chunk, "text", str(chunk))[:120] + "…"
-            t.add_row(str(i + 1), f"{score:.2f}", text)
-        console.print(t)
-
-
-# ── Entrypoint ────────────────────────────────────────────────────────────
+# ── CLI entrypoint ────────────────────────────────────────────────────────
 
 
 def main() -> None:
@@ -726,32 +711,32 @@ def main() -> None:
     subs = parser.add_subparsers(dest="command")
 
     # bench
-    bp = subs.add_parser("bench", help="Run benchmarks with graphical output")
+    bp = subs.add_parser("bench", help="Run benchmarks")
     bp.add_argument("--all", action="store_true", help="Run all benchmark axes")
     bp.add_argument("--axis", action="append", choices=["extraction", "kg-quality", "query", "throughput"])
     bp.add_argument("--competitors", nargs="*", default=[])
-    bp.add_argument("--compare-models", action="store_true", help="Run multi-model provider comparison")
-    bp.add_argument("--docs", type=int, default=10, help="Documents per model (for --compare-models)")
+    bp.add_argument("--compare-models", action="store_true", help="Multi-model provider comparison")
+    bp.add_argument("--docs", type=int, default=10)
     bp.add_argument("--dataset", default="bc5cdr", choices=["bc5cdr", "chemprot", "gad"])
-    bp.add_argument("--providers", nargs="*", help="Filter providers (for --compare-models)")
+    bp.add_argument("--providers", nargs="*")
     bp.add_argument("-o", "--output-dir", type=Path, default=Path(__file__).resolve().parent / "benchmarks" / "results")
     bp.add_argument("-v", "--verbose", action="store_true")
 
-    # show (render previous results)
+    # show
     sp = subs.add_parser("show", help="Render a previous benchmark result JSON")
     sp.add_argument("file", help="Path to benchmark JSON file")
 
     # insert
     ip = subs.add_parser("insert", help="Insert text into the knowledge graph")
-    ip.add_argument("text", help="Text to insert")
+    ip.add_argument("text")
 
     # query
     qp = subs.add_parser("query", help="Query the knowledge graph")
-    qp.add_argument("question", help="Question to ask")
+    qp.add_argument("question")
     qp.add_argument("--only-context", action="store_true")
 
     # status
-    subs.add_parser("status", help="Show system status and connectivity")
+    subs.add_parser("status", help="Show system status")
 
     args = parser.parse_args()
 
@@ -759,14 +744,13 @@ def main() -> None:
         _interactive()
         return
 
+    _print_banner()
+
     if args.command == "bench":
         if args.compare_models:
             _run_compare_models_live(args.docs, args.dataset, args.providers)
         elif args.all:
-            _run_benchmark_live(
-                ["extraction", "kg-quality", "query", "throughput"],
-                args.competitors, args.output_dir, args.verbose,
-            )
+            _run_benchmark_live(["extraction", "kg-quality", "query", "throughput"], args.competitors, args.output_dir, args.verbose)
         elif args.axis:
             _run_benchmark_live(list(dict.fromkeys(args.axis)), args.competitors, args.output_dir, args.verbose)
         else:
@@ -774,11 +758,11 @@ def main() -> None:
     elif args.command == "show":
         _show_results(args.file)
     elif args.command == "insert":
-        _cmd_insert(args)
+        _do_insert(args.text)
     elif args.command == "query":
-        _cmd_query(args)
+        _do_query(args.question, args.only_context)
     elif args.command == "status":
-        _cmd_status(args)
+        _print_banner()
 
 
 if __name__ == "__main__":

@@ -109,11 +109,12 @@ def _bedrock_generate(prompt: str) -> str:
 
 def _cloudflare_generate(prompt: str) -> str:
     """Call Cloudflare Workers AI REST API."""
-    account_id = os.environ.get("CF_ACCOUNT_ID", "")
-    api_token = os.environ.get("CF_API_TOKEN", "")
+    from pipeline.benchmarks.compare_providers import _resolve_cf_creds
+
+    account_id, api_token = _resolve_cf_creds()
     model = os.environ.get("BENCH_LLM_MODEL", "@cf/meta/llama-3.1-8b-instruct")
     if not account_id or not api_token:
-        raise RuntimeError("Set CF_ACCOUNT_ID and CF_API_TOKEN")
+        raise RuntimeError("No Cloudflare credentials (set CF_ACCOUNT_ID/CF_API_TOKEN or run `wrangler login`)")
     payload = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 2048, "temperature": 0.1,

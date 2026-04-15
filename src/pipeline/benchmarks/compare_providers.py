@@ -32,6 +32,44 @@ _SRC_DIR = _BENCH_DIR.parent.parent  # src/
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
+
+# ── Cloudflare credential resolution ─────────────────────────────────────
+
+_WRANGLER_CONFIG = Path.home() / "Library" / "Preferences" / ".wrangler" / "config" / "default.toml"
+
+
+def _resolve_cf_creds() -> tuple[str, str]:
+    """Return (account_id, api_token) from env vars or wrangler CLI config."""
+    account_id = os.environ.get("CF_ACCOUNT_ID", "")
+    api_token = os.environ.get("CF_API_TOKEN", "")
+    if account_id and api_token:
+        return account_id, api_token
+
+    # Fallback: read wrangler OAuth token + account from CLI config
+    try:
+        text = _WRANGLER_CONFIG.read_text()
+        for line in text.splitlines():
+            if line.startswith("oauth_token") and not api_token:
+                api_token = line.split('"')[1]
+    except OSError:
+        pass
+
+    # Account ID from wrangler whoami (cached) or hardcoded fallback
+    if not account_id:
+        try:
+            import subprocess
+            out = subprocess.check_output(["wrangler", "whoami"], text=True, timeout=5, stderr=subprocess.DEVNULL)
+            for line in out.splitlines():
+                parts = line.split("│")
+                if len(parts) >= 3 and len(parts[2].strip()) == 32:
+                    account_id = parts[2].strip()
+                    break
+        except Exception:
+            pass
+
+    return account_id, api_token
+
+
 # ============================================================================
 # MODEL REGISTRY — edit this to add/remove models
 #
@@ -173,10 +211,9 @@ def _call_ollama(prompt: str, model: str, **_: Any) -> str:
 
 
 def _call_cloudflare(prompt: str, model: str, **_: Any) -> str:
-    account_id = os.environ.get("CF_ACCOUNT_ID", "")
-    api_token = os.environ.get("CF_API_TOKEN", "")
+    account_id, api_token = _resolve_cf_creds()
     if not account_id or not api_token:
-        raise RuntimeError("Set CF_ACCOUNT_ID and CF_API_TOKEN")
+        raise RuntimeError("No Cloudflare credentials (set CF_ACCOUNT_ID/CF_API_TOKEN or run `wrangler login`)")
     payload = json.dumps({
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 2048, "temperature": 0.1,
@@ -213,8 +250,10 @@ def _check_available(entry: dict) -> str | None:
             urllib.request.urlopen(os.environ.get("OLLAMA_URL", "http://localhost:11434") + "/api/tags", timeout=2)
         except Exception:
             return "Ollama not running"
-    if p == "cloudflare" and (not os.environ.get("CF_ACCOUNT_ID") or not os.environ.get("CF_API_TOKEN")):
-        return "CF_ACCOUNT_ID / CF_API_TOKEN not set"
+    if p == "cloudflare":
+        acct, tok = _resolve_cf_creds()
+        if not acct or not tok:
+            return "No Cloudflare credentials (wrangler login or set CF_ACCOUNT_ID/CF_API_TOKEN)"
     return None
 
 
