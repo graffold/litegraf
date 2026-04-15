@@ -115,9 +115,23 @@ MODELS: list[dict[str, Any]] = [
     # {"label": "qwen3-8b-or",        "provider": "openai",    "model": "qwen/qwen3-8b"},
     # {"label": "claude-haiku-direct", "provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
 
-    # --- Cloudflare Workers AI (set CF_ACCOUNT_ID + CF_API_TOKEN) ---
-    {"label": "cf-llama3.1-8b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.1-8b-instruct"},
-    {"label": "cf-mistral-7b",      "provider": "cloudflare", "model": "@cf/mistral/mistral-7b-instruct-v0.1"},
+    # --- Cloudflare Workers AI ---
+    {"label": "cf-llama3.3-70b",    "provider": "cloudflare", "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"},
+    {"label": "cf-llama4-scout",    "provider": "cloudflare", "model": "@cf/meta/llama-4-scout-17b-16e-instruct"},
+    {"label": "cf-llama3.1-8b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.1-8b-instruct-fp8"},
+    {"label": "cf-llama3.2-3b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.2-3b-instruct"},
+    {"label": "cf-deepseek-r1-32b", "provider": "cloudflare", "model": "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"},
+    {"label": "cf-qwen3-30b",       "provider": "cloudflare", "model": "@cf/qwen/qwen3-30b-a3b-fp8"},
+    {"label": "cf-qwq-32b",         "provider": "cloudflare", "model": "@cf/qwen/qwq-32b"},
+    {"label": "cf-gemma3-12b",      "provider": "cloudflare", "model": "@cf/google/gemma-3-12b-it"},
+    {"label": "cf-gemma4-26b",      "provider": "cloudflare", "model": "@cf/google/gemma-4-26b-a4b-it"},
+    {"label": "cf-mistral-sm-24b",  "provider": "cloudflare", "model": "@cf/mistralai/mistral-small-3.1-24b-instruct"},
+    {"label": "cf-kimi-k2.5",       "provider": "cloudflare", "model": "@cf/moonshotai/kimi-k2.5"},
+    {"label": "cf-nemotron-120b",   "provider": "cloudflare", "model": "@cf/nvidia/nemotron-3-120b-a12b"},
+    {"label": "cf-gpt-oss-120b",    "provider": "cloudflare", "model": "@cf/openai/gpt-oss-120b"},
+    {"label": "cf-gpt-oss-20b",     "provider": "cloudflare", "model": "@cf/openai/gpt-oss-20b"},
+    {"label": "cf-glm-4.7-flash",   "provider": "cloudflare", "model": "@cf/zai-org/glm-4.7-flash"},
+    {"label": "cf-granite-micro",   "provider": "cloudflare", "model": "@cf/ibm-granite/granite-4.0-h-micro"},
 
     # --- Local Ollama ---
     {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
