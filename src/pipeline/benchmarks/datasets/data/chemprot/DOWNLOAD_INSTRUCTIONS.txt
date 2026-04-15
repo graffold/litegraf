@@ -1,0 +1,4 @@
+ChemProt requires manual download from BioCreative:
+  https://biocreative.bioinformatics.udel.edu/tasks/biocreative-vi/track-5/
+Or install `datasets`: pip install datasets
+Place files under: /Users/apple/Developer/graffold/litegraf/src/pipeline/benchmarks/datasets/data/chemprot

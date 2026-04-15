@@ -267,6 +267,9 @@ def run_comparison(models: list[dict], max_docs: int = 10, dataset: str = "bc5cd
     except Exception:
         pass
     ds = load_dataset(dataset)
+    if split not in ds.splits:
+        available = list(ds.splits.keys()) or ["none — download may have failed"]
+        raise RuntimeError(f"Split '{split}' not found in {dataset}. Available: {available}")
     gold = ds.splits[split].examples[:max_docs]
 
     results: dict[str, Any] = {
