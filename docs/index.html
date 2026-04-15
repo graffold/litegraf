@@ -6,14 +6,14 @@
 <title>litegraf Benchmark Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-:root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --accent: #58a6ff; }
+:root { --bg: #0d1117; --card: #161b22; --border: #30363d; --text: #e6edf3; --muted: #8b949e; --blue: #06B6D4; --violet: #A78BFA; --emerald: #34D399; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
-h1 { font-size: 1.8rem; margin-bottom: 0.5rem; }
+h1 { font-size: 1.8rem; margin-bottom: 0.5rem; color: var(--blue); }
 .subtitle { color: var(--muted); margin-bottom: 2rem; }
-.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(480px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
 .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 1.5rem; }
-.card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--accent); }
+.card h2 { font-size: 1.1rem; margin-bottom: 1rem; color: var(--violet); }
 canvas { width: 100% !important; max-height: 350px; }
 table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 th, td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); }
@@ -23,102 +23,172 @@ tr:hover { background: rgba(88,166,255,0.05); }
 .badge-ok { background: #1f6f2b; color: #7ee787; }
 .badge-err { background: #6e2d1e; color: #f85149; }
 .badge-skip { background: #3d2e00; color: #d29922; }
-#drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 2rem; text-align: center; color: var(--muted); margin-bottom: 2rem; cursor: pointer; }
-#drop-zone.dragover { border-color: var(--accent); color: var(--accent); }
+#drop-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 3rem; text-align: center; color: var(--muted); margin-bottom: 2rem; cursor: pointer; transition: border-color 0.2s; }
+#drop-zone.dragover { border-color: var(--blue); color: var(--blue); }
+#drop-zone code { background: var(--card); padding: 2px 6px; border-radius: 4px; }
 .competitor-row { background: rgba(210,153,34,0.08); }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1rem; }
+.stat { text-align: center; }
+.stat .value { font-size: 1.6rem; font-weight: 700; color: var(--emerald); }
+.stat .label { font-size: 0.8rem; color: var(--muted); }
+.meta { color: var(--muted); font-size: 0.8rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
 </style>
 </head>
 <body>
 <h1>🔬 litegraf Benchmark Dashboard</h1>
-<p class="subtitle">Biomedical NER extraction & knowledge graph construction — multi-model comparison</p>
+<p class="subtitle">Component-level benchmarks — extraction, kg-quality, query, throughput</p>
 
-<div id="drop-zone">Drop a benchmark JSON file here, or click to load<br><small>Files from <code>src/pipeline/benchmarks/results/</code></small><input type="file" id="file-input" accept=".json" style="display:none"></div>
+<div id="drop-zone">
+  Drop a benchmark JSON here, or click to load<br>
+  <small>Accepts both <code>benchmark_*.json</code> and <code>providers_*.json</code></small>
+  <input type="file" id="file-input" accept=".json" style="display:none">
+</div>
 
 <div id="dashboard" style="display:none">
+
+<!-- Extraction -->
+<div id="section-extraction" style="display:none">
+<h2 style="color:var(--violet);margin-bottom:1rem">🔬 Extraction</h2>
 <div class="grid">
-  <div class="card"><h2>Extraction F1 (Exact Match)</h2><canvas id="chart-f1"></canvas></div>
+  <div class="card"><h2>F1 Score (Exact Match)</h2><canvas id="chart-f1"></canvas></div>
   <div class="card"><h2>Precision vs Recall</h2><canvas id="chart-pr"></canvas></div>
-  <div class="card"><h2>Latency (seconds)</h2><canvas id="chart-time"></canvas></div>
-  <div class="card"><h2>KG Build — Entities & Relationships</h2><canvas id="chart-kg"></canvas></div>
 </div>
-
-<div class="card" style="margin-bottom:1.5rem">
+<div class="card" style="margin-bottom:2rem">
   <h2>Leaderboard</h2>
-  <table id="leaderboard">
-    <thead><tr><th>Model</th><th>Provider</th><th>Exact F1</th><th>Partial F1</th><th>Precision</th><th>Recall</th><th>Time</th><th>Status</th></tr></thead>
-    <tbody></tbody>
-  </table>
+  <table id="leaderboard"><thead><tr><th>Model</th><th>Provider</th><th>Exact F1</th><th>Partial F1</th><th>Precision</th><th>Recall</th><th>Time</th><th>Status</th></tr></thead><tbody></tbody></table>
+</div>
 </div>
 
-<div class="card" id="kg-card" style="display:none">
-  <h2>KG Build Results</h2>
-  <table id="kg-table">
-    <thead><tr><th>Model</th><th>Nodes</th><th>Relationships</th><th>Entities</th><th>Docs/min</th><th>Errors</th></tr></thead>
-    <tbody></tbody>
-  </table>
+<!-- Throughput -->
+<div id="section-throughput" style="display:none">
+<h2 style="color:var(--violet);margin-bottom:1rem">⚡ Throughput</h2>
+<div class="card" style="margin-bottom:2rem"><div class="stat-grid" id="throughput-stats"></div></div>
 </div>
+
+<!-- Query -->
+<div id="section-query" style="display:none">
+<h2 style="color:var(--violet);margin-bottom:1rem">🔍 Query Performance</h2>
+<div class="card" style="margin-bottom:2rem"><div class="stat-grid" id="query-stats"></div></div>
+</div>
+
+<!-- KG Quality -->
+<div id="section-kg-quality" style="display:none">
+<h2 style="color:var(--violet);margin-bottom:1rem">🧬 KG Quality</h2>
+<div class="card" style="margin-bottom:2rem"><div class="stat-grid" id="kg-quality-stats"></div></div>
+</div>
+
+<div class="meta" id="meta"></div>
 </div>
 
 <script>
 const dropZone = document.getElementById('drop-zone');
 const fileInput = document.getElementById('file-input');
-
 dropZone.addEventListener('click', () => fileInput.click());
 dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
 dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
 dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); handleFile(e.dataTransfer.files[0]); });
 fileInput.addEventListener('change', e => handleFile(e.target.files[0]));
-
-// Auto-load latest result if defined
 if (typeof BENCHMARK_DATA !== 'undefined') render(BENCHMARK_DATA);
 
 function handleFile(file) {
   if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => { try { render(JSON.parse(e.target.result)); } catch(err) { alert('Invalid JSON: ' + err.message); } };
-  reader.readAsText(file);
+  const r = new FileReader();
+  r.onload = e => { try { render(JSON.parse(e.target.result)); } catch(err) { alert('Invalid JSON: ' + err.message); } };
+  r.readAsText(file);
 }
+
+function stat(value, label) { return `<div class="stat"><div class="value">${value}</div><div class="label">${label}</div></div>`; }
 
 function render(data) {
   document.getElementById('dashboard').style.display = 'block';
   dropZone.style.display = 'none';
 
-  // Handle both compare_providers format and run_benchmark format
+  // Detect format: compare_providers (data.models) vs run_benchmark (data.axes)
+  const isComparison = !!data.models;
+  const axes = data.axes || {};
+
+  // --- Extraction ---
   let models = {};
-  let kgModels = null;
-
-  if (data.models) {
+  if (isComparison) {
     models = data.models;
-  } else if (data.axes && data.axes.extraction && data.axes.extraction.litegraf) {
-    // run_benchmark format
-    models = { litegraf: data.axes.extraction.litegraf };
+  } else if (axes.extraction) {
+    const ext = axes.extraction;
+    if (ext.litegraf) models.litegraf = ext.litegraf;
+    for (const [k, v] of Object.entries(ext)) {
+      if (k !== 'litegraf' && k !== 'competitors' && k !== 'dataset' && k !== 'split' && k !== 'num_documents' && k !== 'elapsed_sec' && k !== 'error' && typeof v === 'object') models[k] = v;
+    }
   }
 
-  if (data.axes && data.axes['kg-build'] && data.axes['kg-build'].models) {
-    kgModels = data.axes['kg-build'].models;
+  if (Object.keys(models).length) {
+    document.getElementById('section-extraction').style.display = 'block';
+    renderExtraction(models);
   }
 
-  // Extract leaderboard data
+  // --- Throughput ---
+  if (axes.throughput && !axes.throughput.error) {
+    document.getElementById('section-throughput').style.display = 'block';
+    const t = axes.throughput;
+    const el = document.getElementById('throughput-stats');
+    let html = '';
+    const ing = t.ingestion_throughput?.pubmed;
+    if (ing) html += stat(ing.docs_per_minute?.toFixed(1) || '—', 'Docs/min');
+    const emb = t.embedding_rate;
+    if (emb?.vectors_per_second) html += stat(emb.vectors_per_second.toFixed(1), 'Embed vec/s');
+    const pipe = t.pipeline_time;
+    if (pipe?.total_seconds) html += stat(pipe.total_seconds.toFixed(1) + 's', 'Pipeline time');
+    const mem = t.memory_peak;
+    if (mem?.peak_rss_mb) html += stat(mem.peak_rss_mb.toFixed(0) + ' MB', 'Peak RSS');
+    const cost = t.token_cost;
+    if (cost?.estimated_cost_per_1k_docs) html += stat('$' + cost.estimated_cost_per_1k_docs.toFixed(4), 'Cost / 1k docs');
+    if (t.extraction_success_rate != null) html += stat((t.extraction_success_rate * 100).toFixed(1) + '%', 'Success rate');
+    el.innerHTML = html;
+  }
+
+  // --- Query ---
+  if (axes.query && !axes.query.error) {
+    document.getElementById('section-query').style.display = 'block';
+    const q = axes.query;
+    const el = document.getElementById('query-stats');
+    let html = '';
+    if (q.answer_relevance?.mean_score) html += stat(q.answer_relevance.mean_score.toFixed(2) + ' / 5', 'Relevance');
+    if (q.mode_routing?.accuracy != null) html += stat((q.mode_routing.accuracy * 100).toFixed(1) + '%', 'Mode routing');
+    if (q.multi_hop_success?.success_rate != null) html += stat((q.multi_hop_success.success_rate * 100).toFixed(1) + '%', 'Multi-hop');
+    if (q.latency?.p50_ms) html += stat(q.latency.p50_ms.toFixed(0) + 'ms', 'Latency p50');
+    if (q.latency?.p95_ms) html += stat(q.latency.p95_ms.toFixed(0) + 'ms', 'Latency p95');
+    el.innerHTML = html;
+  }
+
+  // --- KG Quality ---
+  if (axes['kg-quality'] && !axes['kg-quality'].error) {
+    document.getElementById('section-kg-quality').style.display = 'block';
+    const k = axes['kg-quality'];
+    const el = document.getElementById('kg-quality-stats');
+    let html = '';
+    if (k.consolidation?.accuracy != null) html += stat((k.consolidation.accuracy * 100).toFixed(1) + '%', 'Consolidation');
+    if (k.consolidation?.false_merge_rate != null) html += stat((k.consolidation.false_merge_rate * 100).toFixed(1) + '%', 'False merge');
+    if (k.provenance?.completeness != null) html += stat((k.provenance.completeness * 100).toFixed(1) + '%', 'Provenance');
+    if (k.contradiction_detection?.recall != null) html += stat((k.contradiction_detection.recall * 100).toFixed(1) + '%', 'Contradiction recall');
+    if (k.contradiction_detection?.precision != null) html += stat((k.contradiction_detection.precision * 100).toFixed(1) + '%', 'Contradiction prec');
+    el.innerHTML = html;
+  }
+
+  // --- Metadata ---
+  const m = data.metadata || {};
+  const hw = m.hardware || {};
+  document.getElementById('meta').innerHTML =
+    `litegraf ${m.graffold_version || '?'} · ${m.llm_model || '?'} (${m.llm_service || '?'}) · ${hw.cpu_model || hw.processor || '?'} · ${hw.ram_gb || '?'} GB RAM · ${m.run_date || ''}`;
+}
+
+function renderExtraction(models) {
   const rows = [];
   for (const [label, m] of Object.entries(models)) {
     if (m.skipped) { rows.push({ label, skipped: m.skipped }); continue; }
     const exact = m.exact_match?.micro_avg || {};
     const partial = m.partial_match?.micro_avg || {};
-    rows.push({
-      label,
-      provider: m.provider || '',
-      f1: exact.f1 || 0,
-      partialF1: partial.f1 || 0,
-      precision: exact.precision || 0,
-      recall: exact.recall || 0,
-      time: m.elapsed_sec || 0,
-      errors: m.errors || 0,
-      competitor: m.provider === 'competitor',
-    });
+    rows.push({ label, provider: m.provider || '', f1: exact.f1 || 0, partialF1: partial.f1 || 0, precision: exact.precision || 0, recall: exact.recall || 0, time: m.elapsed_sec || 0, errors: m.errors || 0, competitor: m.provider === 'competitor' });
   }
   rows.sort((a, b) => (b.f1 || 0) - (a.f1 || 0));
 
-  // Leaderboard table
   const tbody = document.querySelector('#leaderboard tbody');
   tbody.innerHTML = rows.map(r => {
     if (r.skipped) return `<tr><td>${r.label}</td><td colspan="6"></td><td><span class="badge badge-skip">skipped</span></td></tr>`;
@@ -127,10 +197,9 @@ function render(data) {
     return `<tr class="${cls}"><td>${r.label}</td><td>${r.provider}</td><td>${r.f1.toFixed(4)}</td><td>${r.partialF1.toFixed(4)}</td><td>${r.precision.toFixed(4)}</td><td>${r.recall.toFixed(4)}</td><td>${r.time.toFixed(1)}s</td><td>${badge}</td></tr>`;
   }).join('');
 
-  // Charts
-  const active = rows.filter(r => !r.skipped);
+  const active = rows.filter(r => !r.skipped && r.f1 > 0);
   const labels = active.map(r => r.label);
-  const colors = labels.map((_, i) => `hsl(${210 + i * 25}, 70%, 60%)`);
+  const colors = labels.map((_, i) => `hsl(${190 + i * 20}, 70%, 60%)`);
 
   new Chart(document.getElementById('chart-f1'), {
     type: 'bar',
@@ -143,34 +212,6 @@ function render(data) {
     data: { datasets: active.map((r, i) => ({ label: r.label, data: [{ x: r.recall, y: r.precision }], backgroundColor: colors[i], pointRadius: 8 })) },
     options: { responsive: true, scales: { x: { title: { display: true, text: 'Recall' }, min: 0, max: 1 }, y: { title: { display: true, text: 'Precision' }, min: 0, max: 1 } } }
   });
-
-  new Chart(document.getElementById('chart-time'), {
-    type: 'bar',
-    data: { labels, datasets: [{ label: 'Seconds', data: active.map(r => r.time), backgroundColor: colors }] },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
-  });
-
-  // KG Build chart
-  if (kgModels) {
-    document.getElementById('kg-card').style.display = 'block';
-    const kgRows = Object.entries(kgModels).filter(([_, v]) => !v.skipped && !v.error);
-    const kgLabels = kgRows.map(([l]) => l);
-    const kgColors = kgLabels.map((_, i) => `hsl(${140 + i * 25}, 60%, 55%)`);
-
-    new Chart(document.getElementById('chart-kg'), {
-      type: 'bar',
-      data: { labels: kgLabels, datasets: [
-        { label: 'Nodes', data: kgRows.map(([_, v]) => v.graph_nodes || 0), backgroundColor: 'rgba(88,166,255,0.7)' },
-        { label: 'Relationships', data: kgRows.map(([_, v]) => v.graph_relationships || 0), backgroundColor: 'rgba(126,231,135,0.7)' },
-      ]},
-      options: { responsive: true, scales: { y: { beginAtZero: true } } }
-    });
-
-    const kgTbody = document.querySelector('#kg-table tbody');
-    kgTbody.innerHTML = kgRows.map(([label, v]) =>
-      `<tr><td>${label}</td><td>${v.graph_nodes || 0}</td><td>${v.graph_relationships || 0}</td><td>${v.entities_extracted || 0}</td><td>${v.docs_per_minute || 0}</td><td>${v.insert_errors || 0}</td></tr>`
-    ).join('');
-  }
 }
 </script>
 </body>

@@ -78,11 +78,11 @@ MODELS: list[dict[str, Any]] = [
     # {"label": "claude-haiku-direct", "provider": "anthropic", "model": "claude-3-5-haiku-20241022"},
 
     # --- Cloudflare Workers AI (set CF_ACCOUNT_ID + CF_API_TOKEN) ---
-    # {"label": "cf-llama3.1-8b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.1-8b-instruct"},
-    # {"label": "cf-mistral-7b",      "provider": "cloudflare", "model": "@cf/mistral/mistral-7b-instruct-v0.1"},
+    {"label": "cf-llama3.1-8b",     "provider": "cloudflare", "model": "@cf/meta/llama-3.1-8b-instruct"},
+    {"label": "cf-mistral-7b",      "provider": "cloudflare", "model": "@cf/mistral/mistral-7b-instruct-v0.1"},
 
     # --- Local Ollama ---
-    # {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
+    {"label": "qwen3-8b-local",     "provider": "ollama",  "model": "qwen3:8b"},
 ]
 
 # ============================================================================

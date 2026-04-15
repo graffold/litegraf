@@ -1,0 +1,97 @@
+{
+  "metadata": {
+    "run_date": "2026-04-15T07:34:23.663276+00:00",
+    "graffold_version": "unknown",
+    "python_version": "3.13.5",
+    "hardware": {
+      "system": "Darwin",
+      "machine": "arm64",
+      "processor": "arm",
+      "cpu_count": 10,
+      "os_version": "macOS-26.3.1-arm64-arm-64bit-Mach-O",
+      "ram_gb": 64,
+      "cpu_model": "Apple M1 Max"
+    },
+    "package_versions": {
+      "neo4j": "6.1.0",
+      "tiktoken": "0.12.0",
+      "orjson": "3.11.8",
+      "pydantic": "2.13.0"
+    },
+    "llm_model": "eu.amazon.nova-micro-v1:0",
+    "llm_service": "bedrock",
+    "competitors": []
+  },
+  "axes": {
+    "extraction": {
+      "competitors": [],
+      "dataset": "bc5cdr",
+      "split": "test",
+      "num_documents": 3,
+      "litegraf": {
+        "num_documents": 3,
+        "entity_types": [
+          "Chemical",
+          "Disease"
+        ],
+        "exact_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 6,
+              "fp": 2,
+              "fn": 5,
+              "precision": 0.75,
+              "recall": 0.5455,
+              "f1": 0.6316
+            },
+            "Disease": {
+              "tp": 4,
+              "fp": 4,
+              "fn": 4,
+              "precision": 0.5,
+              "recall": 0.5,
+              "f1": 0.5
+            }
+          },
+          "micro_avg": {
+            "tp": 10,
+            "fp": 8,
+            "fn": 9,
+            "precision": 0.5556,
+            "recall": 0.5263,
+            "f1": 0.5405
+          }
+        },
+        "partial_match": {
+          "per_type": {
+            "Chemical": {
+              "tp": 8,
+              "fp": 1,
+              "fn": 17,
+              "precision": 0.8889,
+              "recall": 0.32,
+              "f1": 0.4706
+            },
+            "Disease": {
+              "tp": 6,
+              "fp": 2,
+              "fn": 9,
+              "precision": 0.75,
+              "recall": 0.4,
+              "f1": 0.5217
+            }
+          },
+          "micro_avg": {
+            "tp": 14,
+            "fp": 5,
+            "fn": 26,
+            "precision": 0.7368,
+            "recall": 0.35,
+            "f1": 0.4746
+          }
+        }
+      },
+      "elapsed_sec": 3.235
+    }
+  }
+}
