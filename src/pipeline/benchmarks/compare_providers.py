@@ -45,7 +45,7 @@ def _resolve_cf_creds() -> tuple[str, str]:
     if account_id and api_token:
         return account_id, api_token
 
-    # Fallback: read wrangler OAuth token + account from CLI config
+    # Fallback: read wrangler OAuth token from CLI config
     try:
         text = _WRANGLER_CONFIG.read_text()
         for line in text.splitlines():
@@ -54,16 +54,18 @@ def _resolve_cf_creds() -> tuple[str, str]:
     except OSError:
         pass
 
-    # Account ID from wrangler whoami (cached) or hardcoded fallback
-    if not account_id:
+    # Account ID: try wrangler API with the token
+    if api_token and not account_id:
         try:
-            import subprocess
-            out = subprocess.check_output(["wrangler", "whoami"], text=True, timeout=5, stderr=subprocess.DEVNULL)
-            for line in out.splitlines():
-                parts = line.split("│")
-                if len(parts) >= 3 and len(parts[2].strip()) == 32:
-                    account_id = parts[2].strip()
-                    break
+            req = urllib.request.Request(
+                "https://api.cloudflare.com/client/v4/accounts?per_page=1",
+                headers={"Authorization": f"Bearer {api_token}"},
+            )
+            with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+                data = json.loads(resp.read())
+            accounts = data.get("result", [])
+            if accounts:
+                account_id = accounts[0]["id"]
         except Exception:
             pass
 
