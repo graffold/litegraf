@@ -8,6 +8,11 @@
 ▀▀▀▀▀▀▀ ▀▀▀▀▀▀▀   ▀▀▀   ▀▀▀▀▀▀▀  ▀▀▀▀▀▀ ▀▀   ▀▀ ▀▀   ▀▀ ▀▀
   v0.1.0  lightweight knowledge graph benchmark suite
 
+  Ollama        http://localhost:11434  (3 models)
+  Bedrock       123456789  (user)
+  Embeddings    sentence-transformers  (5.4.0)
+  Datasets      3/3 cached  (ready)
+
 CLI
   bench      Run benchmarks with graphical output
   show       Render a previous benchmark result JSON

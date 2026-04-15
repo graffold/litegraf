@@ -68,10 +68,57 @@ BANNER_GRAF = [
 ]
 
 
+def _detect_status() -> dict[str, tuple[str, str]]:
+    """Detect live service status — returns {label: (value, hint)}."""
+    status: dict[str, tuple[str, str]] = {}
+
+    # Ollama
+    try:
+        import urllib.request
+        url = os.environ.get("OLLAMA_URL", "http://localhost:11434")
+        with urllib.request.urlopen(f"{url}/api/tags", timeout=2) as resp:  # noqa: S310
+            tags = json.loads(resp.read())
+        n = len(tags.get("models", []))
+        status["Ollama"] = (url, f"{n} models")
+    except Exception:
+        status["Ollama"] = ("not running", "")
+
+    # Bedrock
+    try:
+        import boto3
+        sts = boto3.client("sts")
+        ident = sts.get_caller_identity()
+        status["Bedrock"] = (ident.get("Account", "?"), ident.get("Arn", "").split("/")[-1])
+    except Exception:
+        status["Bedrock"] = ("no credentials", "aws sso login")
+
+    # Embeddings
+    try:
+        import sentence_transformers
+        status["Embeddings"] = ("sentence-transformers", sentence_transformers.__version__)
+    except ImportError:
+        status["Embeddings"] = ("not installed", "pip install sentence-transformers")
+
+    # Datasets
+    data_dir = Path(__file__).resolve().parent / "benchmarks" / "data"
+    present = [n for n in ("bc5cdr", "chemprot", "gad") if (data_dir / n).exists()]
+    status["Datasets"] = (f"{len(present)}/3 cached", "auto-download on run" if len(present) < 3 else "ready")
+
+    return status
+
+
 def _print_banner() -> None:
     for l_line, g_line in zip(BANNER_LITE, BANNER_GRAF):
         console.print(f"[{BLUE}]{l_line}[/][{VIOLET}]{g_line}[/]")
     console.print(f"  [{BOLD}]v0.1.0[/]  [{TEXT2}]lightweight knowledge graph benchmark suite[/]")
+    console.print()
+
+    # Inline status block
+    for label, (val, hint) in _detect_status().items():
+        if hint:
+            console.print(f"  [{TEXT}]{label:<14}[/][{BLUE}]{val}[/]  [{HINT}]({hint})[/]")
+        else:
+            console.print(f"  [{TEXT}]{label:<14}[/][{BLUE}]{val}[/]")
     console.print()
 
 
