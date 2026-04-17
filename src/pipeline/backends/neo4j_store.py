@@ -24,6 +24,7 @@ from pipeline.interfaces import GraphStore
 logger = logging.getLogger(__name__)
 
 _DEFAULT_DATABASE = "neo4j"
+_BATCH_SIZE = 500
 
 
 class Neo4jGraphStore(GraphStore):
@@ -79,12 +80,16 @@ class Neo4jGraphStore(GraphStore):
         self._database = database
         self._driver: neo4j.Driver = neo4j.GraphDatabase.driver(uri, auth=auth)
 
-        # Ensure a range index on `id` for fast lookups (silences cartesian product warnings)
+        # Pending batch buffers
+        self._node_buffer: list[tuple[str, dict[str, Any]]] = []
+        self._rel_buffer: list[tuple[str, str, str, dict[str, Any]]] = []
+
+        # Ensure a range index on `id` for fast lookups
         try:
             with self._driver.session(database=self._database) as session:
                 session.run("CREATE INDEX node_id_index IF NOT EXISTS FOR (n:Entity) ON (n.id)")
         except Exception:
-            pass  # index may already exist or DB may not support IF NOT EXISTS
+            pass
 
     # -- GraphStore interface ------------------------------------------------
 
@@ -96,23 +101,17 @@ class Neo4jGraphStore(GraphStore):
             result = session.run(query, parameters=params or {})
             return [record.data() for record in result]
 
+    # Alias used by kg_pipeline and other modules
+    _execute_cypher = execute_query
+
     def upsert_node(self, label: str, properties: dict[str, Any]) -> str:
-        """Create or update a node using MERGE.
-
-        The node is matched/created on its ``id`` property.  If ``id`` is not
-        present in *properties*, one is derived from the label and the sorted
-        property values.
-
-        Returns the node's ``id`` property.
-        """
+        """Buffer a node upsert. Flushes automatically at batch size."""
         node_id = properties.get("id") or self._derive_id(label, properties)
         props = {**properties, "id": node_id}
-
-        query = (
-            f"MERGE (n:`{label}` {{id: $id}}) SET n += $props RETURN n.id AS node_id"
-        )
-        records = self.execute_query(query, {"id": node_id, "props": props})
-        return str(records[0]["node_id"]) if records else node_id
+        self._node_buffer.append((label, props))
+        if len(self._node_buffer) >= _BATCH_SIZE:
+            self.flush()
+        return node_id
 
     def upsert_relationship(
         self,
@@ -121,26 +120,61 @@ class Neo4jGraphStore(GraphStore):
         target_id: str,
         properties: dict[str, Any] | None = None,
     ) -> None:
-        """Create or update a relationship using MERGE between two nodes."""
-        query = (
-            "MATCH (a {id: $source_id}), (b {id: $target_id}) "
-            f"MERGE (a)-[r:`{rel_type}`]->(b) "
-        )
-        if properties:
-            query += "SET r += $props"
+        """Buffer a relationship upsert. Flushes automatically at batch size."""
+        self._rel_buffer.append((source_id, rel_type, target_id, properties or {}))
+        if len(self._rel_buffer) >= _BATCH_SIZE:
+            self.flush()
 
-        self.execute_query(
-            query,
-            {
-                "source_id": source_id,
-                "target_id": target_id,
-                "props": properties or {},
-            },
-        )
+    def flush(self) -> None:
+        """Flush all buffered nodes and relationships in batched transactions."""
+        if self._node_buffer:
+            self._flush_nodes()
+        if self._rel_buffer:
+            self._flush_rels()
 
     def close(self) -> None:
-        """Close the underlying Neo4j driver and release connections."""
+        """Flush pending writes and close the driver."""
+        self.flush()
         self._driver.close()
+
+    # -- batch internals -----------------------------------------------------
+
+    def _flush_nodes(self) -> None:
+        """Write all buffered nodes in one transaction per label."""
+        by_label: dict[str, list[dict[str, Any]]] = {}
+        for label, props in self._node_buffer:
+            by_label.setdefault(label, []).append(props)
+        self._node_buffer.clear()
+
+        with self._driver.session(database=self._database) as session:
+            for label, batch in by_label.items():
+                query = (
+                    "UNWIND $batch AS row "
+                    f"MERGE (n:`{label}` {{id: row.id}}) "
+                    "SET n += row"
+                )
+                session.run(query, parameters={"batch": batch})
+                logger.debug("Flushed %d %s nodes", len(batch), label)
+
+    def _flush_rels(self) -> None:
+        """Write all buffered relationships in one transaction per type."""
+        by_type: dict[str, list[dict[str, Any]]] = {}
+        for src, rel_type, tgt, props in self._rel_buffer:
+            by_type.setdefault(rel_type, []).append(
+                {"source_id": src, "target_id": tgt, "props": props}
+            )
+        self._rel_buffer.clear()
+
+        with self._driver.session(database=self._database) as session:
+            for rel_type, batch in by_type.items():
+                query = (
+                    "UNWIND $batch AS row "
+                    "MATCH (a {id: row.source_id}), (b {id: row.target_id}) "
+                    f"MERGE (a)-[r:`{rel_type}`]->(b) "
+                    "SET r += row.props"
+                )
+                session.run(query, parameters={"batch": batch})
+                logger.debug("Flushed %d %s rels", len(batch), rel_type)
 
     # -- helpers -------------------------------------------------------------
 

@@ -202,6 +202,10 @@ class LiteGraf:
                 total_rels += len(rels)
                 await self._store_extraction(chunk_id, chunk_text, nodes, rels)
 
+            # Flush any remaining buffered writes for this document
+            if hasattr(self._graph, "flush"):
+                self._graph.flush()
+
             self._dedup.mark_seen(doc_id)
 
         duration = time.monotonic() - start
@@ -407,13 +411,15 @@ class LiteGraf:
                 f"Entity:{src}", rtype, f"Entity:{tgt}", rel_props
             )
 
+        if hasattr(self._graph, "flush"):
+            self._graph.flush()
+
         duration = time.monotonic() - start
         return InsertKGResult(
             entities_upserted=len(unique_entities),
             relationships_upserted=len(unique_rels),
             duration_seconds=round(duration, 3),
         )
-
     # --- Sync wrappers ------------------------------------------------------
 
     def insert(self, content: str | list[str]) -> InsertResult:
