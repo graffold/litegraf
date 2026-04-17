@@ -7,7 +7,7 @@ import logging
 from dataclasses import dataclass
 from enum import Enum
 
-from neo4j_graphrag.llm.base import LLMInterface
+from pipeline.interfaces import LLMProvider
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ Respond with ONLY a JSON object (no markdown, no extra text):
   "reasoning": "<brief explanation of where/how you found it, or why not found>"
 }}"""
 
-    def __init__(self, llm: LLMInterface):
+    def __init__(self, llm: LLMProvider):
         """
         Initialize evidence scorer.
 
