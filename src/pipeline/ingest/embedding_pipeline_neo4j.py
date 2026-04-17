@@ -1,12 +1,48 @@
 import logging
 import time
 
-from neo4j_graphrag.retrievers import Text2CypherRetriever, VectorRetriever
-
 from pipeline.backends.neo4j_store import Neo4jGraphStore
 from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.interfaces import EmbeddingProvider, GraphStore, LLMProvider
 from pipeline.config import PipelineConfig as Config
+
+
+# Cypher-based retriever wrappers (replaces neo4j_graphrag.retrievers dependency)
+class _VectorRetriever:
+    """Minimal vector retriever using Cypher db.index.vector.queryNodes."""
+    def __init__(self, driver, index_name, embedder=None):
+        self._driver = driver
+        self._index = index_name
+        self._embedder = embedder
+
+    def search(self, query_text=None, query_vector=None, top_k=10):
+        vec = query_vector or (self._embedder.embed_query(query_text) if self._embedder else None)
+        if vec is None:
+            return []
+        with self._driver.session() as s:
+            result = s.run(
+                "CALL db.index.vector.queryNodes($idx, $k, $vec) YIELD node, score RETURN node, score",
+                {"idx": self._index, "k": top_k, "vec": vec},
+            )
+            return [{"node": r["node"], "score": r["score"]} for r in result]
+
+
+class _Text2CypherRetriever:
+    """Minimal text-to-Cypher retriever using LLM to generate Cypher."""
+    def __init__(self, driver, llm=None):
+        self._driver = driver
+        self._llm = llm
+
+    def search(self, query_text, **kwargs):
+        if not self._llm:
+            return []
+        prompt = f"Generate a Cypher query for: {query_text}\nReturn only the Cypher query."
+        cypher = self._llm.invoke(prompt)
+        if hasattr(cypher, "content"):
+            cypher = cypher.content
+        with self._driver.session() as s:
+            result = s.run(str(cypher).strip())
+            return [dict(r) for r in result]
 # Import disease hierarchy enricher
 try:
     from pipeline.processors.disease_hierarchy_enricher import DiseaseHierarchyEnricher
@@ -165,14 +201,14 @@ class Neo4jEmbeddingPipeline:
                 if not chunk_index_exists:
                     raise Exception("chunk_embeddings index not found after creation")
 
-            logger.info("Initializing neo4j-graphrag retrievers")
-            self.vector_retriever = VectorRetriever(
+            logger.info("Initializing retrievers")
+            self.vector_retriever = _VectorRetriever(
                 self.db.driver, "node_embeddings", embedder=self.embedder
             )
-            self.text2cypher_retriever = Text2CypherRetriever(
+            self.text2cypher_retriever = _Text2CypherRetriever(
                 driver=self.db.driver, llm=self.llm
             )
-            logger.info("neo4j-graphrag retrievers initialized successfully")
+            logger.info("Retrievers initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize retrievers: {e}")

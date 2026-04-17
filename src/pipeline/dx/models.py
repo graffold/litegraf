@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
+
+QueryMode = Literal["naive", "local", "global", "hybrid", "mix"]
+QUERY_MODES: set[str] = {"naive", "local", "global", "hybrid", "mix"}
 
 
 @dataclass
@@ -25,6 +28,25 @@ class InsertResult:
     entities_extracted: int
     relationships_extracted: int
     was_duplicate: bool
+    duration_seconds: float
+
+
+@dataclass
+class DeleteResult:
+    """Result of a delete operation."""
+
+    doc_id: str
+    chunks_removed: int
+    entities_removed: int
+    relationships_removed: int
+
+
+@dataclass
+class InsertKGResult:
+    """Result of an insert_kg operation (pre-extracted entities/relationships)."""
+
+    entities_upserted: int
+    relationships_upserted: int
     duration_seconds: float
 
 

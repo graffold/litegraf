@@ -1,10 +1,46 @@
 import logging
 import time
 
-from neo4j_graphrag.retrievers import Text2CypherRetriever, VectorRetriever
-
 from pipeline.ingest.ingestor import ProcessedDocument
 from pipeline.interfaces import EmbeddingProvider, GraphStore, LLMProvider
+
+
+# Cypher-based retriever wrappers (replaces neo4j_graphrag.retrievers dependency)
+class _VectorRetriever:
+    """Minimal vector retriever using Cypher db.index.vector.queryNodes."""
+    def __init__(self, driver, index_name, embedder=None):
+        self._driver = driver
+        self._index = index_name
+        self._embedder = embedder
+
+    def search(self, query_text=None, query_vector=None, top_k=10):
+        vec = query_vector or (self._embedder.embed_query(query_text) if self._embedder else None)
+        if vec is None:
+            return []
+        with self._driver.session() as s:
+            result = s.run(
+                "CALL db.index.vector.queryNodes($idx, $k, $vec) YIELD node, score RETURN node, score",
+                {"idx": self._index, "k": top_k, "vec": vec},
+            )
+            return [{"node": r["node"], "score": r["score"]} for r in result]
+
+
+class _Text2CypherRetriever:
+    """Minimal text-to-Cypher retriever using LLM to generate Cypher."""
+    def __init__(self, driver, llm=None):
+        self._driver = driver
+        self._llm = llm
+
+    def search(self, query_text, **kwargs):
+        if not self._llm:
+            return []
+        prompt = f"Generate a Cypher query for: {query_text}\nReturn only the Cypher query."
+        cypher = self._llm.invoke(prompt)
+        if hasattr(cypher, "content"):
+            cypher = cypher.content
+        with self._driver.session() as s:
+            result = s.run(str(cypher).strip())
+            return [dict(r) for r in result]
 # Import disease hierarchy enricher
 try:
     from pipeline.processors.disease_hierarchy_enricher import DiseaseHierarchyEnricher
@@ -101,7 +137,7 @@ class EmbeddingPipeline:
         return driver.session(database=self.database)
 
     def _create_indexes(self):
-        """Create vector and full-text indexes using neo4j_graphrag standards."""
+        """Create vector and full-text indexes using direct Cypher statements."""
         driver = self._get_driver()
         if driver is None:
             logger.warning(
@@ -110,62 +146,6 @@ class EmbeddingPipeline:
             )
             return
 
-        try:
-            from neo4j_graphrag.indexes import create_vector_index, create_fulltext_index
-        except ImportError:
-            create_vector_index = None
-            create_fulltext_index = None
-
-        def _setup_graphrag_indexes(driver, database, dimensions=768, await_online=True):
-            """Set up neo4j-graphrag vector and fulltext indexes."""
-            if create_vector_index is None:
-                return False
-            try:
-                create_vector_index(
-                    driver,
-                    name="node_embeddings",
-                    label="Entity",
-                    embedding_property="embedding",
-                    dimensions=dimensions,
-                    similarity_fn="cosine",
-                )
-                create_vector_index(
-                    driver,
-                    name="chunk_embeddings",
-                    label="Chunk",
-                    embedding_property="embedding",
-                    dimensions=dimensions,
-                    similarity_fn="cosine",
-                )
-                create_fulltext_index(
-                    driver,
-                    name="node_fulltext",
-                    label="Entity",
-                    node_properties=["name", "full_text", "abstract_text"],
-                )
-                if await_online:
-                    with driver.session(database=database) as session:
-                        session.run("CALL db.awaitIndexes(300)")
-                return True
-            except Exception as e:
-                logger.warning(f"graphrag index setup failed: {e}")
-                return False
-
-        success = _setup_graphrag_indexes(
-            driver=driver,
-            database=self.database,
-            dimensions=768,
-            await_online=True,
-        )
-
-        if success:
-            logger.info(
-                "✓ All indexes created successfully using neo4j_graphrag standards"
-            )
-            return
-        logger.warning("⚠ Some indexes failed, trying manual fallback...")
-
-        # Fallback to manual creation if neo4j_graphrag fails
         try:
             with driver.session(database=self.database) as session:
                 index_exists = session.run(
@@ -178,6 +158,18 @@ class EmbeddingPipeline:
                         OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}
                     """)
                     logger.info("Created vector index: node_embeddings for Entity")
+
+                chunk_index_exists = session.run(
+                    "SHOW INDEXES WHERE name = 'chunk_embeddings'"
+                ).single()
+                if not chunk_index_exists:
+                    session.run("""
+                        CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS
+                        FOR (c:Chunk) ON (c.embedding)
+                        OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}
+                    """)
+                    logger.info("Created vector index: chunk_embeddings")
+
                 fulltext_exists = session.run(
                     "SHOW INDEXES WHERE name = 'node_fulltext'"
                 ).single()
@@ -189,18 +181,12 @@ class EmbeddingPipeline:
                     logger.info(
                         "Created full-text index: node_fulltext for name, full_text, and abstract_text"
                     )
-                chunk_index_exists = session.run(
-                    "SHOW INDEXES WHERE name = 'chunk_embeddings'"
-                ).single()
-                if not chunk_index_exists:
-                    session.run("""
-                        CREATE VECTOR INDEX chunk_embeddings IF NOT EXISTS
-                        FOR (c:Chunk) ON (c.embedding)
-                        OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}
-                    """)
-                    logger.info("Created vector index: chunk_embeddings")
+
                 session.run("CALL db.awaitIndexes(300)")
                 time.sleep(5)
+            logger.info(
+                "✓ All indexes created successfully"
+            )
         except Exception as e:
             logger.error(f"Failed to create or await indexes: {e}")
             raise
@@ -222,15 +208,15 @@ class EmbeddingPipeline:
                 if not chunk_index_exists:
                     raise Exception("chunk_embeddings index not found after creation")
 
-            logger.info("Initializing neo4j-graphrag retrievers")
+            logger.info("Initializing retrievers")
             driver = self._get_driver()
-            self.vector_retriever = VectorRetriever(
+            self.vector_retriever = _VectorRetriever(
                 driver, "node_embeddings", embedder=self.embedder
             )
-            self.text2cypher_retriever = Text2CypherRetriever(
+            self.text2cypher_retriever = _Text2CypherRetriever(
                 driver=driver, llm=self.llm
             )
-            logger.info("neo4j-graphrag retrievers initialized successfully")
+            logger.info("Retrievers initialized successfully")
 
             self._retrievers_initialized = True
 

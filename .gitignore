@@ -13,3 +13,4 @@ build/
 *.log
 *.db
 .DS_Store
+.context/

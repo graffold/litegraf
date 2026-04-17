@@ -81,6 +81,18 @@ class LLMProvider(ABC):
         """
 
 
+class RerankerProvider(ABC):
+    """Abstract reranker that re-scores retrieved candidates."""
+
+    @abstractmethod
+    def rerank(self, query: str, candidates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        """Re-score candidates and return them sorted by relevance.
+
+        Each candidate dict must have at least a ``text`` key.
+        Returns the same dicts with an updated ``score`` key, sorted descending.
+        """
+
+
 class JobStore(ABC):
     """Abstract job state persistence backend."""
 

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider
+from pipeline.interfaces import EmbeddingProvider, GraphStore, JobStore, LLMProvider, RerankerProvider
 
 
 def _lazy_neo4j() -> type[GraphStore]:
@@ -50,11 +50,18 @@ def _lazy_sqlite() -> type[JobStore]:
     return SQLiteJobStore
 
 
+def _lazy_cross_encoder() -> type[RerankerProvider]:
+    from pipeline.backends.cross_encoder_reranker import CrossEncoderReranker
+
+    return CrossEncoderReranker
+
+
 # Mapping from shorthand → lazy loader returning the class
 _GRAPH_STORES: dict[str, Any] = {"neo4j": _lazy_neo4j}
 _EMBEDDING_PROVIDERS: dict[str, Any] = {"local": _lazy_local_embedding}
 _LLM_PROVIDERS: dict[str, Any] = {"ollama": _lazy_ollama, "bedrock": _lazy_bedrock_llm, "cloudflare": _lazy_cloudflare_llm}
 _JOB_STORES: dict[str, Any] = {"sqlite": _lazy_sqlite}
+_RERANKERS: dict[str, Any] = {"cross-encoder": _lazy_cross_encoder}
 
 
 class BackendRegistry:
@@ -87,6 +94,12 @@ class BackendRegistry:
         return cls._resolve(spec, _JOB_STORES, JobStore, "job_store", **kwargs)
 
     @classmethod
+    def resolve_reranker(
+        cls, spec: str | RerankerProvider | type[RerankerProvider], **kwargs: Any
+    ) -> RerankerProvider:
+        return cls._resolve(spec, _RERANKERS, RerankerProvider, "reranker", **kwargs)
+
+    @classmethod
     def register(cls, category: str, name: str, backend_cls: type) -> None:
         """Register a custom backend shorthand at runtime.
 
@@ -100,6 +113,7 @@ class BackendRegistry:
             "embedding": _EMBEDDING_PROVIDERS,
             "llm": _LLM_PROVIDERS,
             "job_store": _JOB_STORES,
+            "reranker": _RERANKERS,
         }.get(category)
         if registry is None:
             raise ValueError(

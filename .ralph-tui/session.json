@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "sessionId": "d61ce61b-f7f5-42c9-bfff-d78a234014dc",
+  "status": "running",
+  "startedAt": "2026-04-13T13:16:14.514Z",
+  "updatedAt": "2026-04-13T14:36:06.968Z",
+  "currentIteration": 10,
+  "maxIterations": 20,
+  "tasksCompleted": 9,
+  "isPaused": false,
+  "agentPlugin": "kiro",
+  "trackerState": {
+    "plugin": "json",
+    "prdPath": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag/prd.json",
+    "totalTasks": 10,
+    "tasks": [
+      {
+        "id": "US-001",
+        "title": "Multi-mode query parameter",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-002",
+        "title": "Entity description embeddings",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-003",
+        "title": "Relationship description embeddings",
+        "status": "open",
+        "completedInSession": false
+      },
+      {
+        "id": "US-004",
+        "title": "Entity gleaning (multi-pass extraction)",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-005",
+        "title": "Entity merge/summarization on re-insert",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-006",
+        "title": "Reranker interface and injection",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-007",
+        "title": "Token budget control for context assembly",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-008",
+        "title": "Document deletion with KG cleanup",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-009",
+        "title": "Conversation history for multi-turn queries",
+        "status": "completed",
+        "completedInSession": true
+      },
+      {
+        "id": "US-010",
+        "title": "Insert custom KG data",
+        "status": "completed",
+        "completedInSession": true
+      }
+    ]
+  },
+  "iterations": [
+    {
+      "iteration": 1,
+      "status": "completed",
+      "taskId": "US-001",
+      "taskTitle": "Multi-mode query parameter",
+      "taskCompleted": true,
+      "durationMs": 253356,
+      "startedAt": "2026-04-13T13:16:15.706Z",
+      "endedAt": "2026-04-13T13:20:29.062Z"
+    },
+    {
+      "iteration": 2,
+      "status": "completed",
+      "taskId": "US-002",
+      "taskTitle": "Entity description embeddings",
+      "taskCompleted": true,
+      "durationMs": 146427,
+      "startedAt": "2026-04-13T13:20:30.127Z",
+      "endedAt": "2026-04-13T13:22:56.554Z"
+    },
+    {
+      "iteration": 3,
+      "status": "failed",
+      "taskId": "US-003",
+      "taskTitle": "Relationship description embeddings",
+      "taskCompleted": false,
+      "durationMs": 142830,
+      "startedAt": "2026-04-13T13:22:57.617Z",
+      "endedAt": "2026-04-13T13:25:20.447Z"
+    },
+    {
+      "iteration": 4,
+      "status": "completed",
+      "taskId": "US-004",
+      "taskTitle": "Entity gleaning (multi-pass extraction)",
+      "taskCompleted": true,
+      "durationMs": 132991,
+      "startedAt": "2026-04-13T13:25:21.457Z",
+      "endedAt": "2026-04-13T13:27:34.448Z"
+    },
+    {
+      "iteration": 5,
+      "status": "completed",
+      "taskId": "US-005",
+      "taskTitle": "Entity merge/summarization on re-insert",
+      "taskCompleted": true,
+      "durationMs": 162083,
+      "startedAt": "2026-04-13T13:27:35.509Z",
+      "endedAt": "2026-04-13T13:30:17.592Z"
+    },
+    {
+      "iteration": 6,
+      "status": "completed",
+      "taskId": "US-006",
+      "taskTitle": "Reranker interface and injection",
+      "taskCompleted": true,
+      "durationMs": 200864,
+      "startedAt": "2026-04-13T13:30:18.646Z",
+      "endedAt": "2026-04-13T13:33:39.510Z"
+    },
+    {
+      "iteration": 7,
+      "status": "completed",
+      "taskId": "US-007",
+      "taskTitle": "Token budget control for context assembly",
+      "taskCompleted": true,
+      "durationMs": 213151,
+      "startedAt": "2026-04-13T13:33:40.576Z",
+      "endedAt": "2026-04-13T13:37:13.727Z"
+    },
+    {
+      "iteration": 8,
+      "status": "completed",
+      "taskId": "US-008",
+      "taskTitle": "Document deletion with KG cleanup",
+      "taskCompleted": true,
+      "durationMs": 217009,
+      "startedAt": "2026-04-13T13:37:14.964Z",
+      "endedAt": "2026-04-13T13:40:51.973Z"
+    },
+    {
+      "iteration": 9,
+      "status": "completed",
+      "taskId": "US-009",
+      "taskTitle": "Conversation history for multi-turn queries",
+      "taskCompleted": true,
+      "durationMs": 116268,
+      "startedAt": "2026-04-13T13:40:53.032Z",
+      "endedAt": "2026-04-13T13:42:49.300Z"
+    },
+    {
+      "iteration": 10,
+      "status": "completed",
+      "taskId": "US-010",
+      "taskTitle": "Insert custom KG data",
+      "taskCompleted": true,
+      "durationMs": 167417,
+      "startedAt": "2026-04-13T13:42:50.367Z",
+      "endedAt": "2026-04-13T13:45:37.784Z"
+    }
+  ],
+  "skippedTaskIds": [],
+  "cwd": "/Users/apple/Developer/graffold/litegraf-worktrees/lightrag",
+  "activeTaskIds": [],
+  "subagentPanelVisible": false
+}

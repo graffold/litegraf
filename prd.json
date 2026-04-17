@@ -1,0 +1,171 @@
+{
+  "name": "LiteGraf Multi-Mode Retrieval & Extraction Improvements",
+  "description": "**Author:** Ralph **Status:** Draft **Created:** 2026-04-13 **Last Updated:** 2026-04-13",
+  "branchName": "feature/litegraf-multi-mode-retrieval-extraction-improvements",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Multi-mode query parameter",
+      "description": "As a developer using litegraf, I want to specify a query mode (naive, local, global, hybrid, mix), So that I can control retrieval strategy based on my question type.",
+      "acceptanceCriteria": [
+        "`kg.query(\"...\", mode=\"hybrid\")` works",
+        "Default mode is `hybrid`",
+        "`naive` mode preserves current behavior exactly",
+        "Mode is available on both `query()` and `aquery()`"
+      ],
+      "priority": 1,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-002",
+      "title": "Entity description embeddings",
+      "description": "As a developer, I want entity descriptions to be embedded and stored in a separate vector index, So that local-mode queries can find relevant entities by semantic similarity.",
+      "acceptanceCriteria": [
+        "During insert, each extracted entity's description is embedded",
+        "Embeddings stored in a dedicated Neo4j vector index (`entity_embeddings`)",
+        "Entity nodes gain a `description` and `embedding` property",
+        "Incremental: new inserts update embeddings for merged entities"
+      ],
+      "priority": 2,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-003",
+      "title": "Relationship description embeddings",
+      "description": "As a developer, I want relationship descriptions to be embedded and stored in a separate vector index, So that global-mode queries can find relevant high-level patterns.",
+      "acceptanceCriteria": [
+        "During insert, each extracted relationship's description is embedded",
+        "Embeddings stored in a dedicated Neo4j vector index (`relationship_embeddings`)",
+        "Relationship edges gain a `description` and `embedding` property"
+      ],
+      "priority": 3,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-004",
+      "title": "Entity gleaning (multi-pass extraction)",
+      "description": "As a developer, I want the extraction step to re-prompt the LLM for missed entities, So that dense documents don't lose important entities on a single pass.",
+      "acceptanceCriteria": [
+        "New parameter `max_gleaning: int = 1` on `LiteGraf`",
+        "When `max_gleaning > 1`, after initial extraction the LLM is asked \"Did you miss any entities or relationships?\"",
+        "Additional entities/rels are merged into the extraction result",
+        "Setting `max_gleaning=1` (default) preserves current single-pass behavior"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-005",
+      "title": "Entity merge/summarization on re-insert",
+      "description": "As a developer, I want entities that appear across multiple documents to have their descriptions merged via LLM summarization, So that the knowledge graph accumulates richer descriptions over time.",
+      "acceptanceCriteria": [
+        "When upserting an entity that already exists, fetch existing description",
+        "If descriptions differ, call LLM to produce a merged summary",
+        "New parameter `enable_entity_merge: bool = True`",
+        "Merged description is re-embedded"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-006",
+      "title": "Reranker interface and injection",
+      "description": "As a developer, I want to optionally provide a reranker that re-scores retrieved results, So that I can improve precision without changing retrieval logic.",
+      "acceptanceCriteria": [
+        "New `RerankerProvider` interface with `rerank(query, candidates) -> scored list`",
+        "`LiteGraf(reranker=\"cross-encoder\")` or `LiteGraf(reranker=MyReranker())`",
+        "When no reranker is set, retrieval results are returned as-is",
+        "Reranker runs after retrieval, before context assembly"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-007",
+      "title": "Token budget control for context assembly",
+      "description": "As a developer, I want query context to respect a token budget, So that large retrievals don't overflow the LLM context window.",
+      "acceptanceCriteria": [
+        "New parameters: `max_context_tokens: int = 8000`",
+        "Context assembly truncates/prioritizes chunks within budget",
+        "Entities and relationships each get a proportional share",
+        "Token counting uses tiktoken (or configurable tokenizer)"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-008",
+      "title": "Document deletion with KG cleanup",
+      "description": "As a developer, I want to delete a previously inserted document and have the KG cleaned up, So that stale or incorrect data can be removed.",
+      "acceptanceCriteria": [
+        "`kg.delete(doc_id)` removes all chunks for that document",
+        "Entities/relationships unique to that document are removed",
+        "Shared entities/relationships are rebuilt from remaining sources",
+        "Dedup index is updated so the same content can be re-inserted"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-009",
+      "title": "Conversation history for multi-turn queries",
+      "description": "As a developer, I want to pass conversation history to the query method, So that follow-up questions have context from prior turns.",
+      "acceptanceCriteria": [
+        "`kg.query(\"...\", history=[{\"role\": \"user\", \"content\": \"...\"}, ...])`",
+        "History is passed to the LLM for response generation only (not retrieval)",
+        "History is optional, default empty"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    },
+    {
+      "id": "US-010",
+      "title": "Insert custom KG data",
+      "description": "As a developer, I want to insert pre-extracted entities and relationships directly, So that I can integrate external knowledge sources without re-extraction.",
+      "acceptanceCriteria": [
+        "`kg.insert_kg(entities=[...], relationships=[...])`",
+        "Entities and relationships are upserted and embedded",
+        "Dedup still applies (by entity name + type)",
+        "No LLM calls are made"
+      ],
+      "priority": 4,
+      "passes": true,
+      "labels": [],
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
+    }
+  ],
+  "metadata": {
+    "createdAt": "2026-04-13T13:16:07.778Z",
+    "version": "1.0.0",
+    "sourcePrd": "PRD.md",
+    "updatedAt": "2026-04-13T14:36:06.967Z"
+  }
+}

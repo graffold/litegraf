@@ -8,7 +8,23 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, TypedDict
 
 from Bio import Entrez
-from langgraph.graph import END, START, StateGraph
+
+# Minimal linear state graph (replaces langgraph dependency)
+class _LinearGraph:
+    def __init__(self):
+        self._nodes = []
+    def add_node(self, name, fn):
+        self._nodes.append((name, fn))
+    def add_edge(self, *_a):
+        pass  # ordering is implicit in add_node call order
+    def compile(self):
+        return self
+    async def ainvoke(self, state):
+        for name, fn in self._nodes:
+            update = await fn(state)
+            if update:
+                state.update(update)
+        return state
 
 from pipeline.ingest.ingestor import Chunk, ProcessedDocument
 from pipeline.ingest.ontology_pipeline import Neo4jBackendAdapter, OntologyPipeline
@@ -115,26 +131,7 @@ class KGPipeline:
             ("Protein", "TREATS", "Disease"),
         ]
 
-        # Initialize SimpleKGPipeline (optional — requires neo4j_graphrag-compatible backends)
         self.kg_pipeline = None
-        try:
-            from neo4j_graphrag.experimental.pipeline.kg_builder import SimpleKGPipeline
-
-            self.kg_pipeline = SimpleKGPipeline(
-                llm=self.llm,
-                driver=getattr(self.db, "driver", None),
-                from_pdf=False,
-                embedder=self.embedder,
-                entities=self.entities,
-                relations=self.relations,
-                potential_schema=self.potential_schema,
-                neo4j_database=self.database,
-            )
-        except Exception as e:
-            logger.warning(
-                f"SimpleKGPipeline not available (backends may not support neo4j_graphrag interface): {e}"
-            )
-            self.kg_pipeline = None
 
         # Use config batch size or default to 10 for better throughput on A100
         if self.batch_size < 10:
@@ -585,7 +582,7 @@ Return only valid JSON:"""
             # Don't fail the entire process for cleanup issues
 
     def _build_graph(self):
-        graph = StateGraph(PipelineState)
+        graph = _LinearGraph()
 
         async def extract_kg(state: PipelineState) -> dict[str, Any]:
             try:
@@ -703,10 +700,8 @@ Return only valid JSON:"""
         graph.add_node("extract_kg", extract_kg)
         graph.add_node("filter_ontology", filter_ontology)
         graph.add_node("link_protein_entities", link_protein_entities)
-        graph.add_edge(START, "extract_kg")
         graph.add_edge("extract_kg", "filter_ontology")
         graph.add_edge("filter_ontology", "link_protein_entities")
-        graph.add_edge("link_protein_entities", END)
         return graph.compile()
 
     async def _find_uniprot_id_for_protein(self, protein_name: str) -> str | None:
