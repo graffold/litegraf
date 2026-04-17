@@ -1,7 +1,7 @@
 """Content extractor for converting bioRxiv paper HTML/PDF into clean text.
 
 Uses langextract for HTML content extraction with a regex-based fallback,
-and pymupdf (fitz) for PDF extraction.
+and Microsoft MarkItDown for PDF extraction.
 """
 
 import logging
@@ -21,8 +21,7 @@ from pipeline.ingest.extraction_models import (
 from pipeline.ingest.extraction_strategies import (
     ExtractionStrategy,
     LangextractStrategy,
-    NougatStrategy,
-    PdftotextStrategy,
+    MarkItDownStrategy,
     PyMuPDFStrategy,
     RegexStrategy,
 )
@@ -31,7 +30,7 @@ class ContentExtractor:
     """Extracts clean text from bioRxiv paper HTML or PDF.
 
     Supports HTML extraction via langextract (with regex fallback) and
-    PDF extraction via pymupdf. Optionally removes References and
+    PDF extraction via Microsoft MarkItDown. Optionally removes References and
     Acknowledgements sections from extracted text.
     """
 
@@ -60,25 +59,21 @@ class ContentExtractor:
         config and have their dependencies available (checked via is_available()).
 
         The priority order is:
-        1. Nougat (if enabled) - Best for complex scientific papers
-        2. PyMuPDF (if enabled) - Fast for simple PDFs
-        3. Pdftotext (if enabled) - Alternative PDF extraction
-        4. Langextract (if enabled) - Robust HTML parsing
-        5. Regex (always enabled) - Final fallback for HTML
+        1. MarkItDown (if enabled) - Markdown-native PDF extraction
+        2. PyMuPDF (if enabled) - Fast plain-text fallback for PDFs
+        3. Langextract (if enabled) - Robust HTML parsing
+        4. Regex (always enabled) - Final fallback for HTML
 
         Returns:
             List of available extraction strategies in priority order.
         """
         strategies: list[ExtractionStrategy] = []
 
-        if self.config.enable_nougat:
-            strategies.append(NougatStrategy(timeout=self.config.nougat_timeout))
+        if self.config.enable_markitdown:
+            strategies.append(MarkItDownStrategy(timeout=self.config.pdf_timeout))
 
         if self.config.enable_pymupdf:
             strategies.append(PyMuPDFStrategy(timeout=self.config.pdf_timeout))
-
-        if self.config.enable_pdftotext:
-            strategies.append(PdftotextStrategy(timeout=self.config.pdf_timeout))
 
         if self.config.enable_langextract:
             strategies.append(LangextractStrategy())
@@ -550,7 +545,7 @@ class ContentExtractor:
     ) -> str:
         """Extract text from a PDF file using the extraction chain.
 
-        This method uses the PDF extraction chain (Nougat → PyMuPDF → pdftotext)
+        This method uses the PDF extraction chain (Nougat → MarkItDown → pdftotext)
         to extract text from the PDF file.
 
         Args:

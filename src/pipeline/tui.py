@@ -93,15 +93,12 @@ def _detect_status() -> dict[str, tuple[str, str]]:
         status["Bedrock"] = ("no credentials", "aws sso login")
 
     # Cloudflare
-    try:
-        from pipeline.benchmarks.compare_providers import _resolve_cf_creds
-        acct, tok = _resolve_cf_creds()
-        if acct and tok:
-            status["Cloudflare"] = (acct, "Workers AI")
-        else:
-            status["Cloudflare"] = ("no credentials", "wrangler login")
-    except Exception:
-        status["Cloudflare"] = ("not configured", "wrangler login")
+    cf_acct = os.environ.get("CF_ACCOUNT_ID", "")
+    cf_tok = os.environ.get("CF_API_TOKEN", "")
+    if cf_acct and cf_tok:
+        status["Cloudflare"] = (cf_acct[:8] + "…", "Workers AI")
+    else:
+        status["Cloudflare"] = ("not configured", "set CF_ACCOUNT_ID + CF_API_TOKEN")
 
     # Embeddings
     try:
@@ -468,6 +465,11 @@ def _show_results(path: str) -> None:
         console.print(_render_model_comparison(data))
         return
 
+    # PDF benchmark result
+    if "tool_summaries" in data:
+        console.print(_render_pdf_bench(data))
+        return
+
     console.print("[yellow]Unrecognized result format[/yellow]")
 
 
@@ -623,6 +625,101 @@ def _run_configured_benchmark(cfg: dict[str, Any]) -> None:
         _run_benchmark_live(cfg["axes"], cfg.get("competitors", []), output_dir, verbose=False)
 
 
+# ── PDF-to-Markdown benchmark ─────────────────────────────────────────────
+
+
+def _render_pdf_bench(data: dict[str, Any]) -> Table:
+    """Render PDF benchmark results as a rich Table."""
+    t = Table(title="PDF → Markdown Tool Benchmark", border_style="dim", title_style=BLUE)
+    t.add_column("Tool", style="bold")
+    t.add_column("OK", justify="right")
+    t.add_column("Avg Chars", justify="right")
+    t.add_column("Headings", justify="right")
+    t.add_column("Lists", justify="right")
+    t.add_column("Tables", justify="right")
+    t.add_column("Avg Time", justify="right")
+    t.add_column("Total", justify="right")
+
+    for _name, s in data.get("tool_summaries", {}).items():
+        ok = f"[{EMERALD}]{s['pdfs_succeeded']}/{s['pdfs_attempted']}[/]"
+        t.add_row(
+            s["tool"],
+            ok,
+            f"{s['avg_chars']:,.0f}",
+            f"{s['avg_headings']:.1f}",
+            f"{s['avg_list_items']:.1f}",
+            f"{s['avg_tables']:.1f}",
+            f"{s['avg_elapsed_sec']:.2f}s",
+            f"{s['total_elapsed_sec']:.1f}s",
+        )
+    return t
+
+
+def _run_pdf_bench_live(pdf_paths: list[str], tools: list[str] | None = None) -> dict[str, Any]:
+    """Run PDF benchmark with a live spinner."""
+    from pipeline.benchmarks.pdf_bench import run_pdf_benchmark
+
+    out_dir = Path(__file__).resolve().parent / "benchmarks" / "results"
+    md_dir = out_dir / "pdfbench_output"
+
+    with console.status(f"[{BLUE}]Running PDF benchmark on {len(pdf_paths)} file(s)…[/]"):
+        results = run_pdf_benchmark(pdf_paths, tools=tools, output_dir=str(md_dir))
+
+    console.print(_render_pdf_bench(results))
+
+    # Save JSON results
+    out_dir.mkdir(parents=True, exist_ok=True)
+    ts = datetime.now(tz=UTC).strftime("%Y%m%dT%H%M%SZ")
+    out_path = out_dir / f"pdfbench_{ts}.json"
+    out_path.write_text(json.dumps(results, indent=2) + "\n")
+    console.print(f"\n  [{HINT}]Results  → {out_path}[/]")
+    console.print(f"  [{HINT}]Markdown → {md_dir}/[/]")
+    return results
+
+
+def _do_pdf_benchmark_interactive() -> None:
+    """Interactive PDF benchmark setup."""
+    from pipeline.benchmarks.pdf_bench import available_tools, _TOOLS
+
+    console.print(f"\n  [{BLUE}]PDF-to-Markdown Benchmark[/]\n")
+
+    # Show tool availability
+    avail = available_tools()
+    for name, ok in avail.items():
+        status = f"[{EMERALD}]✓[/]" if ok else f"[red]✗[/]  [{HINT}]{_TOOLS[name]['install']}[/]"
+        console.print(f"    {name:<14} {status}")
+    console.print()
+
+    active = [t for t, ok in avail.items() if ok]
+    if not active:
+        console.print("[red]No PDF tools available. Install at least one.[/]")
+        return
+
+    # Get PDF paths
+    raw = Prompt.ask(f"  [{HINT}]PDF file(s) — comma-separated paths or glob[/]")
+    if not raw.strip():
+        return
+
+    import glob
+    pdf_paths: list[str] = []
+    for part in raw.split(","):
+        part = part.strip()
+        expanded = glob.glob(part)
+        if expanded:
+            pdf_paths.extend(expanded)
+        elif Path(part).is_file():
+            pdf_paths.append(part)
+        else:
+            console.print(f"  [yellow]Not found: {part}[/]")
+
+    if not pdf_paths:
+        console.print("[red]No valid PDF files found.[/]")
+        return
+
+    console.print(f"  [{HINT}]Found {len(pdf_paths)} PDF(s), running {len(active)} tool(s)…[/]\n")
+    _run_pdf_bench_live(pdf_paths, tools=active)
+
+
 # ── Interactive mode ──────────────────────────────────────────────────────
 
 _MENU = {
@@ -632,6 +729,7 @@ _MENU = {
     "4": ("query",     "Query the KG"),
     "5": ("show",      "Render a result JSON"),
     "6": ("dashboard", "Open HTML dashboard"),
+    "7": ("pdfbench",  "PDF-to-Markdown tool benchmark"),
 }
 
 
@@ -697,6 +795,9 @@ def _interactive() -> None:
                 else:
                     console.print(f"[red]Dashboard not found at {html}[/]")
 
+            elif cmd == "pdfbench":
+                _do_pdf_benchmark_interactive()
+
             console.print()
 
     except KeyboardInterrupt:
@@ -738,6 +839,11 @@ def main() -> None:
     # status
     subs.add_parser("status", help="Show system status")
 
+    # pdfbench
+    pb = subs.add_parser("pdfbench", help="PDF-to-Markdown tool benchmark")
+    pb.add_argument("pdfs", nargs="+", help="PDF file paths or globs")
+    pb.add_argument("--tools", nargs="*", help="Tool names to include (default: all available)")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -763,6 +869,16 @@ def main() -> None:
         _do_query(args.question, args.only_context)
     elif args.command == "status":
         _print_banner()
+    elif args.command == "pdfbench":
+        import glob as _glob
+        pdf_paths: list[str] = []
+        for p in args.pdfs:
+            expanded = _glob.glob(p)
+            pdf_paths.extend(expanded if expanded else [p])
+        if not pdf_paths:
+            console.print("[red]No PDF files found.[/]")
+            sys.exit(1)
+        _run_pdf_bench_live(pdf_paths, tools=args.tools)
 
 
 if __name__ == "__main__":

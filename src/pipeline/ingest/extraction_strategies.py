@@ -1,7 +1,7 @@
 """Extraction strategy interface and base class for the PDF-first extraction pipeline.
 
 This module defines the abstract base class for extraction strategies, which implement
-the Strategy pattern to encapsulate different content extraction methods (Nougat, PyMuPDF,
+the Strategy pattern to encapsulate different content extraction methods (Nougat, MarkItDown,
 pdftotext, langextract, regex). Each strategy is responsible for:
 
 1. Checking if its dependencies are available (is_available)
@@ -49,7 +49,7 @@ class ExtractionStrategy(ABC):
 
     This class defines the contract that all extraction strategies must implement.
     Strategies are used by the ContentExtractor to attempt extraction from various
-    source types (PDF, HTML) using different methods (Nougat, PyMuPDF, pdftotext,
+    source types (PDF, HTML) using different methods (Nougat, MarkItDown, pdftotext,
     langextract, regex).
 
     The extraction chain executes strategies in priority order, attempting each
@@ -88,7 +88,7 @@ class ExtractionStrategy(ABC):
 
         The name is used for logging and debugging purposes to identify which
         strategy was used for extraction. It should be a short, descriptive
-        identifier (e.g., "nougat", "pymupdf", "langextract").
+        identifier (e.g., "nougat", "markitdown", "langextract").
 
         Returns:
             A string identifier for this strategy.
@@ -128,7 +128,7 @@ class ExtractionStrategy(ABC):
         """Check if this strategy can handle the given source type.
 
         Different strategies support different source types:
-        - PDF strategies (Nougat, PyMuPDF, pdftotext) support SourceType.PDF
+        - PDF strategies (Nougat, MarkItDown, pdftotext) support SourceType.PDF
         - HTML strategies (langextract, regex) support SourceType.HTML
 
         The ContentExtractor uses this method to skip strategies that cannot
@@ -153,7 +153,7 @@ class ExtractionStrategy(ABC):
         """Execute extraction on the given source and return the result.
 
         This method performs the actual content extraction using the strategy's
-        specific implementation (Nougat model, PyMuPDF library, pdftotext command,
+        specific implementation (Nougat model, MarkItDown library, pdftotext command,
         etc.). It should:
 
         1. Validate that the source type is supported
@@ -179,7 +179,7 @@ class ExtractionStrategy(ABC):
             - error: Error message if extraction failed, None otherwise
 
         Example:
-            >>> strategy = PyMuPDFStrategy()
+            >>> strategy = MarkItDownStrategy()
             >>> source = ExtractionSource(
             ...     source_type=SourceType.PDF,
             ...     content="/path/to/paper.pdf",
@@ -207,7 +207,7 @@ class ExtractionStrategy(ABC):
             Timeout in seconds as an integer.
 
         Example:
-            >>> strategy = PyMuPDFStrategy()
+            >>> strategy = MarkItDownStrategy()
             >>> strategy.get_timeout()
             30  # Default timeout
 
@@ -529,12 +529,12 @@ class PdftotextStrategy(ExtractionStrategy):
     """PDF extraction using pdftotext command-line tool.
 
     This strategy uses the pdftotext command-line utility to extract text from
-    PDF files. It provides a fast, reliable alternative to PyMuPDF for simple
+    PDF files. It provides a fast, reliable alternative to MarkItDown for simple
     PDF documents. The pdftotext tool is part of the poppler-utils package and
     is commonly available on Linux systems.
 
     This strategy is used as a tertiary PDF extraction method, after Nougat and
-    PyMuPDF, but before falling back to HTML extraction. It supports configurable
+    MarkItDown, but before falling back to HTML extraction. It supports configurable
     timeouts to prevent hanging on problematic PDFs.
 
     Attributes:
@@ -708,138 +708,41 @@ class PdftotextStrategy(ExtractionStrategy):
 class PyMuPDFStrategy(ExtractionStrategy):
     """Fast PDF extraction using PyMuPDF (fitz).
 
-    This strategy uses the PyMuPDF library (imported as 'fitz') to extract text
-    from PDF files. PyMuPDF provides fast, reliable text extraction for simple
-    PDF documents and serves as the secondary PDF extraction method after Nougat.
-
-    This strategy is used when Nougat fails or is unavailable, providing a fast
-    fallback for PDF extraction before attempting pdftotext or HTML extraction.
-    It supports configurable timeouts, though PyMuPDF typically completes quickly
-    for most documents.
-
-    Attributes:
-        timeout: Maximum time in seconds to wait for extraction to complete.
-
-    Example:
-        >>> strategy = PyMuPDFStrategy(timeout=10)
-        >>> if strategy.is_available():
-        ...     source = ExtractionSource(
-        ...         source_type=SourceType.PDF,
-        ...         content="/path/to/paper.pdf",
-        ...         metadata={"doi": "10.1101/2024.01.001"}
-        ...     )
-        ...     result = strategy.extract(source)
-        ...     if result.success:
-        ...         print(f"Extracted {len(result.text)} characters")
+    Plain-text extraction — no markdown structure, but very fast.
+    Used as fallback when MarkItDown is unavailable.
     """
 
-    def __init__(self, timeout: int = 10):
-        """Initialize the PyMuPDFStrategy.
-
-        Args:
-            timeout: Maximum time in seconds to wait for extraction to complete.
-                    Defaults to 10 seconds as specified in the design document.
-        """
+    def __init__(self, timeout: int = 30) -> None:
         self.timeout = timeout
 
     @property
     def name(self) -> str:
-        """Return the name of this strategy.
-
-        Returns:
-            The string "pymupdf" identifying this strategy.
-        """
         return "pymupdf"
 
     def is_available(self) -> bool:
-        """Check if PyMuPDF (fitz) library is available.
-
-        Attempts to import the fitz module (PyMuPDF) to verify it is installed.
-        Returns False if the import fails, allowing the extraction chain to
-        skip this strategy and proceed to the next PDF extraction method.
-
-        Returns:
-            True if PyMuPDF is installed, False otherwise.
-
-        Example:
-            >>> strategy = PyMuPDFStrategy()
-            >>> strategy.is_available()
-            True  # If PyMuPDF is installed
-        """
         try:
             import fitz  # noqa: F401
-
             return True
         except ImportError:
             return False
 
     def supports_source_type(self, source_type: SourceType) -> bool:
-        """Check if this strategy supports the given source type.
-
-        The PyMuPDF strategy only supports PDF sources, as it is designed
-        to extract text from PDF files using the PyMuPDF library.
-
-        Args:
-            source_type: The source type to check.
-
-        Returns:
-            True if source_type is PDF, False otherwise.
-        """
         return source_type == SourceType.PDF
 
+    def get_timeout(self) -> int:
+        return self.timeout
+
     def extract(self, source: ExtractionSource) -> ExtractionResult:
-        """Extract text from PDF using PyMuPDF.
-
-        This method uses PyMuPDF (fitz) to open the PDF file and extract text
-        from all pages. The extraction process:
-
-        1. Opens the PDF file using fitz.open()
-        2. Iterates through all pages in the document
-        3. Extracts text from each page using page.get_text()
-        4. Joins all pages with newlines to preserve page boundaries
-        5. Ensures the document is closed in a finally block
-        6. Returns the extracted text with timing information
-
-        Args:
-            source: The extraction source containing PDF file path in content field.
-
-        Returns:
-            An ExtractionResult with:
-            - success=True and extracted text if extraction succeeds
-            - success=False with error message if extraction fails
-            - execution_time tracking the time taken for extraction
-
-        Example:
-            >>> strategy = PyMuPDFStrategy()
-            >>> source = ExtractionSource(
-            ...     source_type=SourceType.PDF,
-            ...     content="/tmp/paper.pdf",
-            ...     metadata={}
-            ... )
-            >>> result = strategy.extract(source)
-            >>> if result.success:
-            ...     print(f"Extracted {len(result.text)} characters in {result.execution_time:.2f}s")
-            ... else:
-            ...     print(f"Failed: {result.error}")
-        """
         import time
 
         start_time = time.time()
         doc = None
-
         try:
             import fitz
 
-            # Open the PDF document
             doc = fitz.open(source.content)
-
-            # Extract text from all pages
-            pages = []
-            for page in doc:
-                pages.append(page.get_text())
-
-            # Join pages with newlines
-            text = "\n".join(pages)
+            pages = [page.get_text() for page in doc]
+            text = "\n\n".join(pages)
             execution_time = time.time() - start_time
 
             return ExtractionResult(
@@ -858,22 +761,65 @@ class PyMuPDFStrategy(ExtractionStrategy):
                 error=str(e),
             )
         finally:
-            # Ensure document is closed even if an error occurs
             if doc is not None:
                 doc.close()
 
+
+class MarkItDownStrategy(ExtractionStrategy):
+    """PDF extraction using Microsoft MarkItDown.
+
+    Produces real markdown output (headings, tables, lists) from PDFs,
+    making it ideal for downstream LLM consumption and structured parsing.
+    Requires ``pip install markitdown[pdf]``.
+    """
+
+    def __init__(self, timeout: int = 30) -> None:
+        self.timeout = timeout
+
+    @property
+    def name(self) -> str:
+        return "markitdown"
+
+    def is_available(self) -> bool:
+        try:
+            from markitdown import MarkItDown  # noqa: F401
+            return True
+        except ImportError:
+            return False
+
+    def supports_source_type(self, source_type: SourceType) -> bool:
+        return source_type == SourceType.PDF
+
     def get_timeout(self) -> int:
-        """Return the configured timeout for this strategy.
-
-        Returns:
-            The timeout value in seconds configured during initialization.
-
-        Example:
-            >>> strategy = PyMuPDFStrategy(timeout=15)
-            >>> strategy.get_timeout()
-            15
-        """
         return self.timeout
+
+    def extract(self, source: ExtractionSource) -> ExtractionResult:
+        import time
+
+        start_time = time.time()
+        try:
+            from markitdown import MarkItDown
+
+            md = MarkItDown()
+            result = md.convert(source.content)
+            text = result.text_content
+            execution_time = time.time() - start_time
+
+            return ExtractionResult(
+                success=True,
+                text=text,
+                method="markitdown",
+                execution_time=execution_time,
+            )
+        except Exception as e:
+            execution_time = time.time() - start_time
+            return ExtractionResult(
+                success=False,
+                text="",
+                method="markitdown",
+                execution_time=execution_time,
+                error=str(e),
+            )
 
 
 class NougatStrategy(ExtractionStrategy):
@@ -885,7 +831,7 @@ class NougatStrategy(ExtractionStrategy):
     making it ideal for complex scientific papers.
 
     This strategy is used as the primary PDF extraction method, before falling
-    back to simpler methods like PyMuPDF or pdftotext. It supports configurable
+    back to simpler methods like MarkItDown or pdftotext. It supports configurable
     timeouts (default 120 seconds) to prevent hanging on problematic PDFs, and
     uses lazy model loading to avoid loading the model until needed.
 

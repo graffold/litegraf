@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>litegraf · PDF Benchmark</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+:root{--bg:#0d1117;--card:#161b22;--border:#30363d;--text:#e6edf3;--muted:#8b949e;--blue:#06B6D4;--violet:#A78BFA;--emerald:#34D399;--red:#f85149;--yellow:#d29922}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);padding:2rem;max-width:1200px;margin:0 auto}
+h1{font-size:1.8rem;margin-bottom:.3rem;color:var(--blue)}
+.subtitle{color:var(--muted);margin-bottom:2rem;font-size:.95rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:1.5rem;margin-bottom:2rem}
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1.5rem}
+.card h2{font-size:1rem;margin-bottom:1rem;color:var(--violet)}
+canvas{width:100%!important;max-height:320px}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th,td{padding:.55rem .75rem;text-align:left;border-bottom:1px solid var(--border)}
+th{color:var(--muted);font-weight:600;white-space:nowrap}
+td{white-space:nowrap}
+tr:hover{background:rgba(88,166,255,.05)}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:.75rem}
+.badge-ok{background:#1f6f2b;color:#7ee787}
+.badge-err{background:#6e2d1e;color:var(--red)}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:1rem;margin-bottom:2rem}
+.stat{text-align:center;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:1rem}
+.stat .value{font-size:1.5rem;font-weight:700;color:var(--emerald)}
+.stat .label{font-size:.78rem;color:var(--muted);margin-top:.25rem}
+#drop-zone{border:2px dashed var(--border);border-radius:8px;padding:3rem;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .2s}
+#drop-zone.over{border-color:var(--blue);color:var(--blue)}
+#drop-zone code{background:var(--card);padding:2px 6px;border-radius:4px}
+#dashboard{display:none}
+.per-pdf th:first-child,.per-pdf td:first-child{position:sticky;left:0;background:var(--card);z-index:1}
+.err-list{font-size:.8rem;color:var(--red);margin-top:.75rem;max-height:120px;overflow-y:auto}
+.err-list li{margin-bottom:.3rem;word-break:break-word;white-space:normal}
+.winner{color:var(--emerald);font-weight:700}
+</style>
+</head>
+<body>
+
+<h1>📄 PDF → Markdown Benchmark</h1>
+<p class="subtitle">Comparing extraction tools on biomedical PDFs — character yield, markdown structure, speed</p>
+
+<div id="drop-zone">
+  Drop a <code>pdfbench_*.json</code> result file here, or click to load
+  <input type="file" id="file-input" accept=".json" style="display:none">
+</div>
+
+<div id="dashboard">
+  <div class="stat-row" id="stats"></div>
+
+  <div class="grid">
+    <div class="card"><h2>Character Yield</h2><canvas id="chart-chars"></canvas></div>
+    <div class="card"><h2>Markdown Structure</h2><canvas id="chart-structure"></canvas></div>
+  </div>
+  <div class="grid">
+    <div class="card"><h2>Speed (seconds per PDF)</h2><canvas id="chart-speed"></canvas></div>
+    <div class="card"><h2>Structure Breakdown per PDF</h2><canvas id="chart-per-pdf"></canvas></div>
+  </div>
+
+  <div class="card" style="margin-bottom:1.5rem">
+    <h2>Tool Summary</h2>
+    <table id="summary-table">
+      <thead><tr><th>Tool</th><th class="num">PDFs</th><th class="num">Avg Chars</th><th class="num">Headings</th><th class="num">Lists</th><th class="num">Tables</th><th class="num">Avg Time</th><th class="num">Total</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="error-section"></div>
+  </div>
+
+  <div class="card">
+    <h2>Per-PDF Results</h2>
+    <table class="per-pdf" id="per-pdf-table">
+      <thead><tr><th>PDF</th><th>Tool</th><th class="num">Chars</th><th class="num">Headings</th><th class="num">Lists</th><th class="num">Tables</th><th class="num">Time</th><th>Status</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const dz=document.getElementById('drop-zone'),fi=document.getElementById('file-input');
+dz.addEventListener('click',()=>fi.click());
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave',()=>dz.classList.remove('over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('over');load(e.dataTransfer.files[0])});
+fi.addEventListener('change',e=>load(e.target.files[0]));
+
+function load(f){if(!f)return;const r=new FileReader();r.onload=e=>{try{render(JSON.parse(e.target.result))}catch(err){alert('Invalid JSON: '+err.message)}};r.readAsText(f)}
+
+const COLORS={pymupdf:'#06B6D4',markitdown:'#A78BFA',pspdfkit:'#34D399',chandra:'#F59E0B',marker:'#EC4899'};
+const fallback=['#06B6D4','#A78BFA','#34D399','#F59E0B','#EC4899','#8B5CF6','#F97316'];
+function color(name,i){return COLORS[name]||fallback[i%fallback.length]}
+
+function fmt(n){return n>=1000?n.toLocaleString():String(n)}
+function best(arr){const m=Math.max(...arr);return arr.map(v=>v===m)}
+
+function render(data){
+  document.getElementById('dashboard').style.display='block';
+  dz.style.display='none';
+
+  const ts=data.tool_summaries||{};
+  const pp=data.per_pdf||[];
+  const tools=Object.keys(ts);
+  const succeeded=tools.filter(t=>ts[t].pdfs_succeeded>0);
+
+  // Stats
+  const totalPdfs=Math.max(...tools.map(t=>ts[t].pdfs_attempted),0);
+  const fastest=succeeded.length?succeeded.reduce((a,b)=>ts[a].avg_elapsed_sec<ts[b].avg_elapsed_sec?a:b):'-';
+  const richest=succeeded.length?succeeded.reduce((a,b)=>{
+    const sa=ts[a],sb=ts[b];return(sa.avg_headings+sa.avg_tables)>(sb.avg_headings+sb.avg_tables)?a:b;
+  }):'-';
+  document.getElementById('stats').innerHTML=[
+    stat(totalPdfs,'PDFs tested'),
+    stat(tools.length,'Tools'),
+    stat(succeeded.length,'Succeeded'),
+    stat(fastest,'Fastest'),
+    stat(richest,'Best structure'),
+  ].join('');
+
+  // Summary table
+  const tbody=document.querySelector('#summary-table tbody');
+  const charVals=tools.map(t=>ts[t].avg_chars);
+  const bestChars=best(charVals);
+  const speedVals=tools.map(t=>ts[t].pdfs_succeeded?ts[t].avg_elapsed_sec:Infinity);
+  const bestSpeed=best(speedVals.map(v=>v===Infinity?0:-v));
+
+  tbody.innerHTML=tools.map((t,i)=>{
+    const s=ts[t];
+    const ok=s.pdfs_succeeded;
+    const badge=ok===s.pdfs_attempted?`<span class="badge badge-ok">${ok}/${s.pdfs_attempted}</span>`:`<span class="badge badge-err">${ok}/${s.pdfs_attempted}</span>`;
+    const cc=bestChars[i]&&ok?'winner':'';
+    const sc=bestSpeed[i]&&ok?'winner':'';
+    return `<tr>
+      <td><strong>${t}</strong></td>
+      <td class="num">${s.pdfs_attempted}</td>
+      <td class="num ${cc}">${fmt(Math.round(s.avg_chars))}</td>
+      <td class="num">${s.avg_headings}</td>
+      <td class="num">${s.avg_list_items}</td>
+      <td class="num">${s.avg_tables}</td>
+      <td class="num ${sc}">${ok?s.avg_elapsed_sec.toFixed(2)+'s':'—'}</td>
+      <td class="num">${s.total_elapsed_sec.toFixed(1)}s</td>
+      <td>${badge}</td></tr>`;
+  }).join('');
+
+  // Errors
+  const errHtml=tools.filter(t=>ts[t].errors.length).map(t=>{
+    return `<div class="err-list"><strong>${t}</strong><ul>${ts[t].errors.map(e=>`<li>${esc(e)}</li>`).join('')}</ul></div>`;
+  }).join('');
+  document.getElementById('error-section').innerHTML=errHtml;
+
+  // Per-PDF table
+  const ppBody=document.querySelector('#per-pdf-table tbody');
+  ppBody.innerHTML=pp.map(r=>{
+    const badge=r.success?'<span class="badge badge-ok">ok</span>':`<span class="badge badge-err">fail</span>`;
+    return `<tr><td>${r.pdf}</td><td>${r.tool}</td><td class="num">${fmt(r.char_count)}</td><td class="num">${r.heading_count}</td><td class="num">${r.list_item_count}</td><td class="num">${r.table_count}</td><td class="num">${r.success?r.elapsed_sec.toFixed(3)+'s':'—'}</td><td>${badge}</td></tr>`;
+  }).join('');
+
+  // Charts
+  renderCharts(ts,pp,tools,succeeded);
+}
+
+function renderCharts(ts,pp,tools,succeeded){
+  // Char yield bar
+  new Chart(document.getElementById('chart-chars'),{
+    type:'bar',
+    data:{labels:tools,datasets:[{label:'Avg chars',data:tools.map(t=>Math.round(ts[t].avg_chars)),backgroundColor:tools.map((t,i)=>color(t,i))}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>v>=1000?(v/1000)+'k':v}}}}
+  });
+
+  // Structure grouped bar
+  new Chart(document.getElementById('chart-structure'),{
+    type:'bar',
+    data:{labels:tools,datasets:[
+      {label:'Headings',data:tools.map(t=>ts[t].avg_headings),backgroundColor:'#A78BFA'},
+      {label:'Lists',data:tools.map(t=>ts[t].avg_list_items),backgroundColor:'#06B6D4'},
+      {label:'Tables',data:tools.map(t=>ts[t].avg_tables),backgroundColor:'#34D399'},
+    ]},
+    options:{responsive:true,scales:{y:{beginAtZero:true}}}
+  });
+
+  // Speed bar
+  new Chart(document.getElementById('chart-speed'),{
+    type:'bar',
+    data:{labels:tools,datasets:[{label:'Avg sec/PDF',data:tools.map(t=>ts[t].pdfs_succeeded?ts[t].avg_elapsed_sec:0),backgroundColor:tools.map((t,i)=>color(t,i))}]},
+    options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,title:{display:true,text:'seconds',color:'#8b949e'}}}}
+  });
+
+  // Per-PDF stacked structure
+  const pdfs=[...new Set(pp.map(r=>r.pdf))];
+  const datasets=succeeded.map((t,i)=>({
+    label:t,
+    data:pdfs.map(p=>{const r=pp.find(x=>x.tool===t&&x.pdf===p);return r?(r.heading_count+r.list_item_count+r.table_count):0}),
+    backgroundColor:color(t,i),
+  }));
+  new Chart(document.getElementById('chart-per-pdf'),{
+    type:'bar',
+    data:{labels:pdfs.map(p=>p.length>25?p.slice(0,22)+'…':p),datasets},
+    options:{responsive:true,scales:{y:{beginAtZero:true,stacked:true,title:{display:true,text:'structural elements',color:'#8b949e'}},x:{stacked:true}}}
+  });
+}
+
+function stat(v,l){return `<div class="stat"><div class="value">${v}</div><div class="label">${l}</div></div>`}
+function esc(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML}
+</script>
+</body>
+</html>

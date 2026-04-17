@@ -77,23 +77,20 @@ class ExtractionConfig:
     timeout values, section removal options, quality thresholds, and PDF caching.
 
     The default extraction chain order is:
-        1. Nougat  – best for complex scientific papers (PDF)
-        2. PyMuPDF – fast extraction for simple PDFs (PDF)
-        3. pdftotext – alternative CLI-based PDF extraction (PDF)
-        4. langextract – robust HTML content extraction (HTML)
-        5. regex – always-available HTML fallback (HTML)
+        1. MarkItDown – markdown-native PDF extraction (PDF)
+        2. MarkItDown – markdown-native PDF extraction via Microsoft markitdown (PDF)
+        3. langextract – robust HTML content extraction (HTML)
+        4. regex – always-available HTML fallback (HTML)
 
     Strategies are attempted in this priority order. Disabled strategies
     are skipped, and strategies whose dependencies are unavailable are
     filtered out during initialization.
 
     Attributes:
-        enable_nougat: Enable Nougat PDF parser for complex scientific papers
-        enable_pymupdf: Enable PyMuPDF for fast PDF extraction
-        enable_pdftotext: Enable pdftotext command-line tool for PDF extraction
+        enable_markitdown: Enable MarkItDown for markdown-native PDF extraction
+        enable_markitdown: Enable Microsoft MarkItDown for markdown-native PDF extraction
         enable_langextract: Enable langextract for robust HTML parsing
-        nougat_timeout: Timeout in seconds for Nougat extraction
-        pdf_timeout: Timeout in seconds for PyMuPDF and pdftotext extraction
+        pdf_timeout: Timeout in seconds for PDF extraction strategies
         remove_references: Remove References section from extracted text
         remove_acknowledgements: Remove Acknowledgements section from extracted text
         quality_min_length: Minimum text length in characters for quality validation
@@ -101,20 +98,16 @@ class ExtractionConfig:
         pdf_cache_dir: Directory for caching downloaded PDFs (None to disable caching)
         pdf_download_timeout: Timeout in seconds for PDF downloads
         max_concurrent_extractions: Maximum number of concurrent extraction tasks
-            when using batch extraction. Limits memory usage, especially important
-            when Nougat is enabled as each instance can consume significant GPU/CPU
-            memory. Default is 5.
+            when using batch extraction. Default is 5.
     """
 
     # Strategy enablement
-    enable_nougat: bool = True
+    enable_markitdown: bool = True
     enable_pymupdf: bool = True
-    enable_pdftotext: bool = True
     enable_langextract: bool = True
 
     # Timeouts (seconds)
-    nougat_timeout: int = 120
-    pdf_timeout: int = 10
+    pdf_timeout: int = 30
 
     # Section removal
     remove_references: bool = True

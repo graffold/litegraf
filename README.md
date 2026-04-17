@@ -28,8 +28,9 @@ Interactive mode  Ctrl+C to exit
   4  Benchmark: throughput only
   5  Compare LLM providers
   6  Insert text into KG
-  7  Query the KG
-  8  Render a result JSON
+  7  PDF tool benchmark
+  8  Query the KG
+  9  Render a result JSON
 
 litegraf ❯
 ```
@@ -179,6 +180,20 @@ independently — no graph database required, just an LLM endpoint:
 | `kg-quality` | Entity consolidation accuracy, contradiction detection, provenance validation |
 | `query` | Mode routing, answer relevance (LLM-as-judge), latency percentiles |
 | `throughput` | Docs/min, embedding rate, peak memory, estimated token cost |
+
+There's also a standalone PDF-to-markdown tool benchmark that compares extraction
+tools (pymupdf, markitdown, pspdfkit) on character yield, markdown structure,
+and speed. Access it via TUI option 7, the CLI, or programmatically:
+
+```bash
+# CLI
+litegraf-tui pdfbench paper1.pdf paper2.pdf
+```
+
+```python
+from pipeline.benchmarks.pdf_bench import run_pdf_benchmark
+results = run_pdf_benchmark(pdf_paths=["paper1.pdf", "paper2.pdf"])
+```
 
 ```bash
 # Interactive TUI

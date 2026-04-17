@@ -1,9 +1,9 @@
 """
-PDF Processor for vision-based content extraction.
+PDF Processor for content extraction.
 
-Uses a vision-capable LLM (e.g., Llama-3.2-11B-Vision-Instruct) to extract
-text, figures, tables, and metadata from PDF documents by converting pages
-to images and sending them to the vision model.
+Uses Microsoft MarkItDown as the primary text extraction method for PDF
+documents. Falls back to a vision-capable LLM (e.g., Llama-3.2-11B-Vision-Instruct)
+for scanned/image-only PDFs where direct text extraction yields insufficient content.
 """
 
 import logging
@@ -75,6 +75,9 @@ def infer_vision_capability(model_name: str) -> bool:
 
 def convert_pdf_page_to_base64_image(page: Any) -> str:
     """Convert a single PyMuPDF page to a base64-encoded PNG string.
+
+    Only used in the vision-model fallback path for scanned PDFs.
+    Requires ``pymupdf`` to be installed.
 
     Args:
         page: A ``fitz.Page`` object.
@@ -153,30 +156,41 @@ def parse_vision_response(response_text: str) -> dict[str, Any]:
 
 
 class PDFProcessor:
-    """Processes PDF files using vision models.
+    """Processes PDF files using Microsoft MarkItDown with vision-model fallback.
 
-    Converts PDF pages to images, sends them to a vision-capable LLM,
-    and parses the structured responses into text, figures, tables,
-    and metadata.
+    Primary extraction uses MarkItDown for fast, high-quality markdown output.
+    Falls back to a vision-capable LLM for scanned/image-only PDFs where
+    MarkItDown yields insufficient text.
     """
 
     def __init__(self, model: str = "bedrock") -> None:
-        """Initialize with the vision processor for actual image understanding.
+        """Initialize with MarkItDown and a vision processor fallback.
 
         Args:
-            model: Ignored (kept for API compatibility). Always uses VisionProcessor.
+            model: Ignored (kept for API compatibility). Always uses VisionProcessor
+                   for the fallback path.
         """
-        from pipeline.processors.vision_processor import VisionProcessor
+        from markitdown import MarkItDown
 
         self.model_name = model
-        self.vision = VisionProcessor()
-        logger.info(
-            f"PDFProcessor initialized with VisionProcessor "
-            f"(model={self.vision.vision_model_id})"
-        )
+        self._md = MarkItDown()
+
+        # Lazy-init vision processor only when needed
+        self._vision: Any = None
+        logger.info("PDFProcessor initialized with MarkItDown (vision fallback available)")
+
+    def _get_vision_processor(self) -> Any:
+        """Lazily initialize the VisionProcessor for scanned-PDF fallback."""
+        if self._vision is None:
+            from pipeline.processors.vision_processor import VisionProcessor
+            self._vision = VisionProcessor()
+        return self._vision
 
     async def extract_content(self, pdf_path: str) -> dict[str, Any]:
         """Extract text, figures, tables, and metadata from a single PDF.
+
+        Strategy 1: Use MarkItDown for direct text extraction (fast).
+        Strategy 2: Fall back to vision model for scanned/image PDFs.
 
         Args:
             pdf_path: Filesystem path to the PDF file.
@@ -188,65 +202,68 @@ class PDFProcessor:
             CorruptedPDFError: If the PDF cannot be opened or read.
             VisionModelTimeoutError: If the vision model times out.
         """
-        try:
-            import fitz  # PyMuPDF
-        except ImportError:
-            raise ImportError(
-                "PyMuPDF is required for PDF processing. "
-                "Install with: pip install pymupdf"
-            )
-
         path = Path(pdf_path)
         if not path.exists():
             raise CorruptedPDFError(f"PDF file not found: {pdf_path}")
 
-        # Open PDF
+        # Strategy 1: MarkItDown text extraction
+        try:
+            result = self._md.convert(pdf_path)
+            combined_text = result.text_content.strip()
+        except Exception as exc:
+            raise CorruptedPDFError(
+                f"Failed to open PDF '{path.name}': {exc}"
+            ) from exc
+
+        if len(combined_text) > 100:
+            logger.info(
+                f"Extracted {len(combined_text)} chars from '{path.name}' "
+                f"using MarkItDown"
+            )
+
+            # Extract metadata from first lines
+            lines = combined_text.split("\n")
+            title_candidate = next(
+                (l.strip() for l in lines if len(l.strip()) > 10), ""
+            )
+            metadata: dict[str, Any] = {"title": title_candidate[:200]}
+
+            return {
+                "text": combined_text,
+                "figures": [],
+                "tables": [],
+                "metadata": metadata,
+            }
+
+        # Strategy 2: Fall back to vision model for scanned/image PDFs
+        logger.info(
+            f"MarkItDown yielded insufficient text for '{path.name}', "
+            f"falling back to vision model"
+        )
+
+        try:
+            import fitz  # PyMuPDF — only needed for vision fallback
+        except ImportError:
+            raise ImportError(
+                "PyMuPDF is required for vision-based PDF fallback. "
+                "Install with: pip install pymupdf"
+            )
+
         try:
             pdf_doc = fitz.open(pdf_path)
         except Exception as exc:
-            raise CorruptedPDFError(f"Failed to open PDF '{path.name}': {exc}") from exc
+            raise CorruptedPDFError(
+                f"Failed to open PDF '{path.name}' for vision fallback: {exc}"
+            ) from exc
 
         try:
+            vision = self._get_vision_processor()
             total_pages = len(pdf_doc)
             all_text: list[str] = []
             all_figures: list[dict[str, Any]] = []
             all_tables: list[dict[str, Any]] = []
-            metadata: dict[str, Any] = {}
+            metadata = {}
 
-            # Strategy 1: Extract selectable text directly (fast, no model needed)
-            for page_idx in range(total_pages):
-                page = pdf_doc[page_idx]
-                page_text = page.get_text("text").strip()
-                if page_text:
-                    all_text.append(page_text)
-
-            # If we got meaningful text (>100 chars), use it directly
-            combined_text = "\n\n".join(all_text)
-            if len(combined_text) > 100:
-                logger.info(
-                    f"Extracted {len(combined_text)} chars of text from {total_pages} pages "
-                    f"of '{path.name}' using direct text extraction"
-                )
-
-                # Extract metadata from first page text
-                lines = combined_text.split("\n")
-                title_candidate = next(
-                    (l.strip() for l in lines if len(l.strip()) > 10), ""
-                )
-                metadata = {"title": title_candidate[:200]}
-
-                return {
-                    "text": combined_text,
-                    "figures": [],
-                    "tables": [],
-                    "metadata": metadata,
-                }
-
-            # Strategy 2: Fall back to vision model for scanned/image PDFs
-            logger.info(
-                f"No selectable text in '{path.name}', falling back to vision model"
-            )
-            all_text = []
             for page_idx in range(total_pages):
                 page = pdf_doc[page_idx]
                 page_number = page_idx + 1

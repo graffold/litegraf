@@ -105,7 +105,7 @@ def enrich_cmd(args: argparse.Namespace) -> None:
 def main() -> None:
     """Main CLI entrypoint (``biokg-ingest``)."""
     parser = argparse.ArgumentParser(prog="litegraf")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=False)
 
     # --- run subcommand ---
     run_parser = subparsers.add_parser("run", help="Run ingestion pipeline")
@@ -136,4 +136,11 @@ def main() -> None:
     enrich_parser.set_defaults(func=enrich_cmd)
 
     args = parser.parse_args()
+
+    if not args.command:
+        # No subcommand — launch interactive TUI
+        from pipeline.tui import _interactive
+        _interactive()
+        return
+
     args.func(args)
