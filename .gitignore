@@ -20,3 +20,6 @@ build/
 litegraf_workdir/
 .vscode/
 PDF/
+uv.lock
+src/pipeline/benchmarks/datasets/data/
+.mypy_cache/
