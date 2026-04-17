@@ -14,3 +14,9 @@ build/
 *.db
 .DS_Store
 .context/
+
+.ralph-tui/
+.kiro/
+litegraf_workdir/
+.vscode/
+PDF/

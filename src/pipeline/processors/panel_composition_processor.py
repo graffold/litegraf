@@ -1,5 +1,5 @@
 """
-Panel Composition Processor - Ingest Olink panel composition metadata.
+Panel Composition Processor - Ingest panel composition metadata.
 
 This module provides functionality to create Panel nodes and link them to proteins
 via CONTAINS_TARGET relationships, enabling panel-based filtering and queries.
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PanelCompositionProcessor:
-    """Process Olink panel composition metadata from JSON files."""
+    """Process panel composition metadata from JSON files."""
 
     def __init__(self, db: Any):
         """
@@ -27,7 +27,7 @@ class PanelCompositionProcessor:
 
     def ingest_panel_composition(self, json_path: Path) -> dict[str, int]:
         """
-        Ingest Olink panel composition data from JSON file.
+        Ingest panel composition data from JSON file.
 
         Expected JSON format:
         {
@@ -88,7 +88,7 @@ class PanelCompositionProcessor:
             # Create Panel node
             panel_props = {
                 "name": panel_name,
-                "data_source": "Olink",
+                "data_source": "panel_composition",
             }
             if panel.get("panel_id"):
                 panel_props["panel_id"] = panel["panel_id"].strip()
@@ -120,7 +120,7 @@ class PanelCompositionProcessor:
                     continue
 
                 # Build relationship properties
-                rel_props = {"data_source": "Olink"}
+                rel_props = {"data_source": "panel_composition"}
                 if target.get("detection_limit") is not None:
                     try:
                         rel_props["detection_limit"] = float(target["detection_limit"])

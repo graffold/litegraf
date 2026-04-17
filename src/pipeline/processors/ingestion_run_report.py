@@ -58,7 +58,7 @@ class IngestionRunReport:
     bucketed into a fixed-size histogram on the fly.
 
     Usage:
-        report = IngestionRunReport(service="bedrock", database="olink")
+        report = IngestionRunReport(service="bedrock", database="neo4j")
         report.record_chunk(obs)   # called per chunk — O(1) memory
         summary = report.finalize()
     """

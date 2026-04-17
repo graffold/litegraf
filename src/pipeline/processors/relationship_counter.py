@@ -8,7 +8,7 @@ from pipeline.interfaces import GraphStore, LLMProvider
 import json
 logger = logging.getLogger(__name__)
 class RelationshipCounter:
-    def __init__(self, database: str = "olink", graph_store: GraphStore | None = None):
+    def __init__(self, database: str = "neo4j", graph_store: GraphStore | None = None):
         self.database = database
         if graph_store is not None:
             self.db = graph_store

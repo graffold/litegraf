@@ -84,7 +84,7 @@ Versions follow [Semantic Versioning](https://semver.org/).
 - Multimodal chunking strategy (figures + tables)
 - Full-text ingestion performance optimization
 - UniProt database integration
-- Olink assay validation data ingestion
+- Assay validation data ingestion
 - Panel composition metadata ingestion
 - Sample size extraction from studies
 - Entity coverage measurement

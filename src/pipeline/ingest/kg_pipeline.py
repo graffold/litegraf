@@ -69,7 +69,7 @@ class KGPipeline:
         embedding_provider: EmbeddingProvider,
         llm_provider: LLMProvider,
         *,
-        database: str = "olink",
+        database: str = "neo4j",
         enable_consolidation: bool = False,
         max_tokens: int = 512,
         overlap_tokens: int = 64,

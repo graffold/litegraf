@@ -20,7 +20,7 @@ class DisGeNETIntegrator:
     def __init__(
         self,
         backend: str = "neo4j",
-        database: str = "olink1",
+        database: str = "neo4j",
         db: GraphStore | None = None,
     ):
         """
@@ -242,7 +242,7 @@ def main():
         description="Ingest DisGeNET gene-disease associations"
     )
     parser.add_argument("--file", required=True, help="Path to DisGeNET TSV file")
-    parser.add_argument("--database", default="olink1", help="Database name")
+    parser.add_argument("--database", default="neo4j", help="Database name")
     parser.add_argument(
         "--backend",
         default="neo4j",

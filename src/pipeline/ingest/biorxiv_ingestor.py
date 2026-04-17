@@ -50,7 +50,7 @@ class BioRxivIngestor:
     def __init__(
         self,
         service: str = "local",
-        database: str = "olink3",
+        database: str = "neo4j",
         backend: str = "neo4j",
         enable_consolidation: bool = False,
         rate_limit_delay: float = 1.0,

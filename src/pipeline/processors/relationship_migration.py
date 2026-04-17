@@ -19,7 +19,7 @@ class RelationshipMigration:
     - AbstractDocument nodes for full text and embeddings
     """
 
-    def __init__(self, database: str = "olink", dry_run: bool = True, graph_store: GraphStore | None = None):
+    def __init__(self, database: str = "neo4j", dry_run: bool = True, graph_store: GraphStore | None = None):
         self.database = database
         self.dry_run = dry_run
         if graph_store is not None:
@@ -397,7 +397,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Migrate RelationshipOccurrence nodes to new architecture"
     )
-    parser.add_argument("--database", default="olink", help="Database name")
+    parser.add_argument("--database", default="neo4j", help="Database name")
     parser.add_argument(
         "--dry-run",
         action="store_true",

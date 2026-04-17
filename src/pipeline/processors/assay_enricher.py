@@ -1,7 +1,7 @@
 """
-Olink Enricher - Add Olink assay validation data to protein nodes.
+Assay Enricher - Add assay validation data to protein nodes.
 
-This module provides functionality to enrich protein nodes with Olink-specific
+This module provides functionality to enrich protein nodes with
 assay performance metrics from CSV validation data files.
 """
 
@@ -13,12 +13,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-class OlinkEnricher:
-    """Enrich protein nodes with Olink assay validation data."""
+class AssayEnricher:
+    """Enrich protein nodes with assay validation data."""
 
     def __init__(self, db: Any):
         """
-        Initialize Olink enricher.
+        Initialize assay enricher.
 
         Args:
             db: Database instance (Neo4j or Neptune)
@@ -27,12 +27,12 @@ class OlinkEnricher:
 
     def ingest_validation_data(self, csv_path: Path) -> int:
         """
-        Ingest Olink assay validation data from CSV file.
+        Ingest assay validation data from CSV file.
 
         Expected CSV format:
         - uniprot_id: UniProt accession ID
-        - assay_name: Olink assay name
-        - panel: Olink panel name
+        - assay_name: Assay name
+        - panel: Panel name
         - lod: Limit of detection (pg/mL)
         - lloq: Lower limit of quantification (pg/mL)
         - cv_intra: Intra-assay coefficient of variation (%)
@@ -49,7 +49,7 @@ class OlinkEnricher:
             logger.error(f"CSV file not found: {csv_path}")
             return 0
 
-        logger.info(f"Ingesting Olink validation data from {csv_path}")
+        logger.info(f"Ingesting assay validation data from {csv_path}")
         enriched_count = 0
 
         with open(csv_path, encoding="utf-8") as f:
@@ -60,49 +60,47 @@ class OlinkEnricher:
                     logger.warning(f"Skipping row with missing uniprot_id: {row}")
                     continue
 
-                # Build properties dict
-                props = {"data_source": "Olink"}
+                props = {"data_source": "assay_validation"}
                 if row.get("assay_name"):
-                    props["olink_assay_name"] = row["assay_name"].strip()
+                    props["assay_name"] = row["assay_name"].strip()
                 if row.get("panel"):
-                    props["olink_panel"] = row["panel"].strip()
+                    props["assay_panel"] = row["panel"].strip()
                 if row.get("lod"):
                     try:
-                        props["olink_lod"] = float(row["lod"])
+                        props["assay_lod"] = float(row["lod"])
                     except ValueError:
                         logger.warning(
                             f"Invalid LOD value for {uniprot_id}: {row['lod']}"
                         )
                 if row.get("lloq"):
                     try:
-                        props["olink_lloq"] = float(row["lloq"])
+                        props["assay_lloq"] = float(row["lloq"])
                     except ValueError:
                         logger.warning(
                             f"Invalid LLOQ value for {uniprot_id}: {row['lloq']}"
                         )
                 if row.get("cv_intra"):
                     try:
-                        props["olink_cv_intra"] = float(row["cv_intra"])
+                        props["assay_cv_intra"] = float(row["cv_intra"])
                     except ValueError:
                         logger.warning(
                             f"Invalid CV_intra value for {uniprot_id}: {row['cv_intra']}"
                         )
                 if row.get("cv_inter"):
                     try:
-                        props["olink_cv_inter"] = float(row["cv_inter"])
+                        props["assay_cv_inter"] = float(row["cv_inter"])
                     except ValueError:
                         logger.warning(
                             f"Invalid CV_inter value for {uniprot_id}: {row['cv_inter']}"
                         )
                 if row.get("specificity"):
                     try:
-                        props["olink_specificity"] = float(row["specificity"])
+                        props["assay_specificity"] = float(row["specificity"])
                     except ValueError:
                         logger.warning(
                             f"Invalid specificity value for {uniprot_id}: {row['specificity']}"
                         )
 
-                # Update protein node
                 query = """
                 MATCH (p:Protein)
                 WHERE p.uniprot_id = $uniprot_id OR p.uniprotID = $uniprot_id
@@ -114,11 +112,11 @@ class OlinkEnricher:
                 result = self.db.execute_query(query, params)
                 if result:
                     enriched_count += 1
-                    logger.debug(f"Enriched protein {uniprot_id} with Olink data")
+                    logger.debug(f"Enriched protein {uniprot_id} with assay data")
                 else:
                     logger.warning(
                         f"Protein node not found for UniProt ID: {uniprot_id}"
                     )
 
-        logger.info(f"Enriched {enriched_count} proteins with Olink validation data")
+        logger.info(f"Enriched {enriched_count} proteins with assay validation data")
         return enriched_count

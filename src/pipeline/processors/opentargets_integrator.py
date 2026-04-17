@@ -26,7 +26,7 @@ class OpenTargetsIntegrator:
     def __init__(
         self,
         backend: str = "neo4j",
-        database: str = "olink1",
+        database: str = "neo4j",
         db: GraphStore | None = None,
         rate_limit: float = DEFAULT_RATE_LIMIT,
     ):
@@ -367,7 +367,7 @@ async def main():
         required=True,
         help="Ensembl gene IDs (e.g., ENSG00000142192)",
     )
-    parser.add_argument("--database", default="olink1", help="Database name")
+    parser.add_argument("--database", default="neo4j", help="Database name")
     parser.add_argument(
         "--backend",
         default="neo4j",
