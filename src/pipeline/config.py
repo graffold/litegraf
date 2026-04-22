@@ -22,6 +22,12 @@ class PipelineConfig:
     # Tokenizers
     TOKENIZERS_PARALLELISM = os.environ.get("TOKENIZERS_PARALLELISM", "false")
 
+    # Chunking — token-based chunker settings
+    # Default 1024 tokens per chunk (up from 512) to reduce LLM call count.
+    # Llama 3.1 8B has 128K context; 1024-token chunks are well within budget.
+    CHUNK_MAX_TOKENS = int(os.environ.get("CHUNK_MAX_TOKENS", "1024"))
+    CHUNK_OVERLAP_TOKENS = int(os.environ.get("CHUNK_OVERLAP_TOKENS", "128"))
+
     # LLM / Bedrock
     BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "")
     OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")

@@ -92,19 +92,36 @@ class CloudflareLLMProvider(LLMProvider):
         return self._handle_response(resp)
 
     async def extract(self, prompt: str, text: str) -> dict[str, Any]:
-        combined = (
-            f"{prompt}\n\n"
+        """Extract entities using system/user message separation for prompt caching."""
+        user_msg = (
             f"Text: {text}\n\n"
-            "Respond with valid JSON containing 'entities' and 'relationships' keys."
+            "Respond with valid JSON containing 'entities' and "
+            "'relationships' keys."
         )
-        raw = await self.ainvoke(combined)
+        raw = await self.ainvoke(user_msg, system_prompt=prompt)
         return self._parse_json(raw)
 
     # -- internals -----------------------------------------------------------
 
     def _build_payload(self, prompt: str, **kwargs: Any) -> dict[str, Any]:
+        """Build request payload with system/user message separation.
+
+        When ``system_prompt`` is provided in kwargs, it is sent as a
+        separate system message. This enables Cloudflare Workers AI prompt
+        caching — the system prefix is hashed and cached server-side so
+        repeated calls with the same system message only pay for the user
+        message tokens on cache hits.
+        """
+        system_prompt = kwargs.pop("system_prompt", None)
+        messages: list[dict[str, str]] = []
+
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+
+        messages.append({"role": "user", "content": prompt})
+
         return {
-            "messages": [{"role": "user", "content": prompt}],
+            "messages": messages,
             "max_tokens": kwargs.get("max_tokens", self._max_tokens),
             "temperature": kwargs.get("temperature", self._temperature),
         }

@@ -4,8 +4,8 @@ Uses langextract for HTML content extraction with a regex-based fallback,
 and Microsoft MarkItDown for PDF extraction.
 """
 
-import logging
 import asyncio
+import logging
 import re
 from typing import Any
 
@@ -25,6 +25,9 @@ from pipeline.ingest.extraction_strategies import (
     PyMuPDFStrategy,
     RegexStrategy,
 )
+
+from src.models.domain_models import URLConversionRule
+
 logger = logging.getLogger(__name__)
 class ContentExtractor:
     """Extracts clean text from bioRxiv paper HTML or PDF.
@@ -118,32 +121,48 @@ class ContentExtractor:
         # Clear the list after cleanup attempt
         self._temp_files.clear()
 
-    def _construct_pdf_url(self, html_url: str) -> str | None:
-        """Convert bioRxiv HTML URL to PDF URL.
+    def _construct_pdf_url(
+        self,
+        html_url: str,
+        url_conversion_rules: list[URLConversionRule] | None = None,
+    ) -> str | None:
+        """Convert an HTML URL to a PDF URL using configurable rules.
 
-        BioRxiv URLs follow the pattern:
-        - HTML: https://www.biorxiv.org/content/10.1101/YYYY.MM.DD.NNNNNN[vN]
-        - PDF: https://www.biorxiv.org/content/10.1101/YYYY.MM.DD.NNNNNN[vN].full.pdf
+        When *url_conversion_rules* are provided, the URL is matched against
+        each rule's ``domain_pattern`` regex in order.  The first matching
+        rule's ``conversion_template`` is applied (``{base_url}`` is replaced
+        with the cleaned URL).  If no rule matches, the original URL is
+        returned unchanged so the caller can attempt a direct download.
+
+        When *url_conversion_rules* is ``None``, the legacy bioRxiv-specific
+        logic is used for backward compatibility.
 
         Args:
-            html_url: BioRxiv HTML URL.
+            html_url: Source HTML URL.
+            url_conversion_rules: Optional list of domain-specific conversion
+                rules.  ``None`` triggers the legacy bioRxiv fallback.
 
         Returns:
-            PDF URL if conversion successful, None if URL format is invalid.
-
-        Example:
-            >>> url = "https://www.biorxiv.org/content/10.1101/2024.01.15.123456v1"
-            >>> pdf_url = extractor._construct_pdf_url(url)
-            >>> print(pdf_url)
-            https://www.biorxiv.org/content/10.1101/2024.01.15.123456v1.full.pdf
+            Converted PDF URL, the original URL (when rules are provided but
+            none match), or ``None`` (legacy mode, non-bioRxiv URL).
         """
-        if not html_url or "biorxiv.org" not in html_url:
+        if not html_url:
             return None
 
-        # Remove any existing .full.pdf suffix if present
-        base_url = html_url.rstrip("/").replace(".full.pdf", "")
+        # --- Rule-based conversion ---
+        if url_conversion_rules is not None:
+            base_url = html_url.rstrip("/")
+            for rule in url_conversion_rules:
+                if re.search(rule.domain_pattern, html_url):
+                    return rule.conversion_template.replace("{base_url}", base_url)
+            # No rule matched - return original URL unchanged
+            return html_url
 
-        # Add .full.pdf suffix
+        # --- Legacy bioRxiv fallback (backward compatibility) ---
+        if "biorxiv.org" not in html_url:
+            return None
+
+        base_url = html_url.rstrip("/").replace(".full.pdf", "")
         return f"{base_url}.full.pdf"
 
     async def _download_pdf(self, url: str) -> str | None:

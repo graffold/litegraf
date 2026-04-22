@@ -54,6 +54,44 @@ class EvidenceScorer:
     Classifies study designs and assigns quality weights for evidence aggregation.
     """
 
+    # Static system prompts (cacheable by the LLM provider)
+    _CLASSIFICATION_SYSTEM_PROMPT = """\
+You are a biomedical research expert. Classify the study design of a given abstract.
+
+Study Design Types:
+- randomized_controlled_trial (RCT): Participants randomly assigned to treatment/control groups
+- cohort_study: Follows a group over time to observe outcomes
+- case_control_study: Compares cases (with disease) to controls (without disease)
+- case_report: Describes individual patient case(s)
+- observational_study: Observes without intervention
+- systematic_review: Comprehensive review of existing studies
+- meta_analysis: Statistical analysis combining multiple studies
+- unknown: Cannot determine from abstract
+
+Respond with ONLY a JSON object (no markdown, no extra text):
+{
+  "study_design": "<one of the types above>",
+  "confidence": <float between 0.0 and 1.0>,
+  "reasoning": "<brief explanation>"
+}"""
+
+    _SAMPLE_SIZE_SYSTEM_PROMPT = """\
+You are a biomedical research expert. Extract the sample size (number of participants, subjects, or samples) from a given abstract.
+
+Look for:
+- Number of participants/subjects/patients in the study
+- Sample size mentioned in methods or results
+- Cohort size, group sizes, or total N
+- Phrases like "n=100", "100 patients", "cohort of 500"
+
+Respond with ONLY a JSON object (no markdown, no extra text):
+{
+  "sample_size": <integer or null if not found>,
+  "confidence": <float between 0.0 and 1.0>,
+  "reasoning": "<brief explanation of where/how you found it, or why not found>"
+}"""
+
+    # Keep legacy prompts for backward compatibility (used if provider doesn't support system_prompt)
     CLASSIFICATION_PROMPT = """You are a biomedical research expert. Classify the study design of the following abstract.
 
 Study Design Types:
@@ -107,16 +145,14 @@ Respond with ONLY a JSON object (no markdown, no extra text):
         """
         Classify study design from abstract text using LLM.
 
-        Args:
-            abstract: Abstract text to classify
-
-        Returns:
-            StudyClassification with design type, confidence, and reasoning
+        Uses system/user message separation for prompt caching — the static
+        classification instructions are cached, only the abstract varies.
         """
-        prompt = self.CLASSIFICATION_PROMPT.format(abstract=abstract)
-
         try:
-            response = await self.llm.ainvoke(prompt)
+            response = await self.llm.ainvoke(
+                f"Classify the study design of this abstract:\n\n{abstract}",
+                system_prompt=self._CLASSIFICATION_SYSTEM_PROMPT,
+            )
 
             # Parse LLM response
             response_text = (
@@ -203,16 +239,13 @@ Respond with ONLY a JSON object (no markdown, no extra text):
         """
         Extract sample size from abstract text using LLM.
 
-        Args:
-            abstract: Abstract text to extract from
-
-        Returns:
-            SampleSizeExtraction with sample size, confidence, and reasoning
+        Uses system/user message separation for prompt caching.
         """
-        prompt = self.SAMPLE_SIZE_PROMPT.format(abstract=abstract)
-
         try:
-            response = await self.llm.ainvoke(prompt)
+            response = await self.llm.ainvoke(
+                f"Extract the sample size from this abstract:\n\n{abstract}",
+                system_prompt=self._SAMPLE_SIZE_SYSTEM_PROMPT,
+            )
 
             # Parse LLM response
             response_text = (

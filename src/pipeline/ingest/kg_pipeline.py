@@ -63,6 +63,43 @@ class PipelineState(TypedDict):
 
 
 class KGPipeline:
+    # Static system prompt for KG extraction — sent once and cached by the
+    # LLM provider (Cloudflare prompt caching / Bedrock Claude cache_control).
+    # This saves ~350 tokens per chunk when the provider caches the prefix.
+    _EXTRACTION_SYSTEM_PROMPT = """\
+You are a biomedical knowledge graph extraction engine. Your task is to extract \
+entities and relationships from scientific text and return structured JSON.
+
+Return a JSON object with this exact structure:
+{
+    "nodes": [
+        {"id": "unique_entity_id", "name": "entity_name", "type": "entity_type"}
+    ],
+    "relationships": [
+        {
+            "source_id": "source_entity_id",
+            "target_id": "target_entity_id",
+            "type": "relationship_type",
+            "source_sentence": "the exact sentence from the text that supports this relationship"
+        }
+    ]
+}
+
+Entity types: Protein, Disease, or Entity.
+Relationship types: ASSOCIATED_WITH, CAUSES, TREATS, or RELATED_TO.
+For each relationship, "source_sentence" MUST be the verbatim sentence from the input text.
+
+IMPORTANT: Do NOT extract generic terms as standalone entities. Terms to IGNORE:
+- "Isoform", "Isoform 1", "Isoform 2" (unless fully qualified like "Isoform 1 of Protein X")
+- "Fragment", "Subunit", "Domain", "Region"
+- "Protein", "Enzyme", "Molecule", "Compound"
+- "Disease", "Syndrome", "Disorder"
+- "Patient", "Subject", "Cohort", "Group"
+- "Study", "Analysis", "Data", "Result"
+
+Only extract specific, named entities (e.g., "BRCA1", "Alzheimer's Disease", "Interleukin-6").
+Return only valid JSON."""
+
     def __init__(
         self,
         graph_store: GraphStore,
@@ -71,8 +108,8 @@ class KGPipeline:
         *,
         database: str = "neo4j",
         enable_consolidation: bool = False,
-        max_tokens: int = 512,
-        overlap_tokens: int = 64,
+        max_tokens: int | None = None,
+        overlap_tokens: int | None = None,
         skip_node_labeling: bool = False,
         context_graph_manager: ContextGraphManagerBase | None = None,
         provenance_factory: ProvenanceFactoryBase | None = None,
@@ -100,9 +137,11 @@ class KGPipeline:
         self.context_graph_manager = context_graph_manager
         self.provenance_factory = provenance_factory
 
-        # Token-based chunker (replaces word-count Chunker)
+        # Token-based chunker — defaults from PipelineConfig (env-configurable)
+        _max_tokens = max_tokens if max_tokens is not None else Config.CHUNK_MAX_TOKENS
+        _overlap = overlap_tokens if overlap_tokens is not None else Config.CHUNK_OVERLAP_TOKENS
         self.chunker = TokenChunker(
-            max_tokens=max_tokens, overlap_tokens=overlap_tokens
+            max_tokens=_max_tokens, overlap_tokens=_overlap
         )
 
         # Get unified configuration
@@ -346,60 +385,30 @@ class KGPipeline:
             logger.error(f"Failed to store abstract metadata {pmid}: {e}")
 
     async def _extract_kg_with_llm(self, text: str) -> dict[str, Any]:
-        """Extract knowledge graph using LLM."""
+        """Extract knowledge graph using LLM with system/user message separation.
+
+        The static extraction instructions are sent as ``system_prompt``
+        (cached by the provider on repeated calls), while only the chunk
+        text varies per invocation — saving ~350 input tokens per chunk.
+        """
         try:
-            # Use a custom prompt that works with our LLM setup
-            prompt = f"""Extract entities and relationships from the following text. Return a JSON object with this exact structure:
+            # Dynamic user message — only the chunk text changes per call
+            user_prompt = (
+                "Extract entities and relationships from the following text:\n\n"
+                f"{text}"
+            )
 
-{{
-    "nodes": [
-        {{
-            "id": "unique_entity_id",
-            "name": "entity_name",
-            "type": "entity_type"
-        }}
-    ],
-    "relationships": [
-        {{
-            "source_id": "source_entity_id",
-            "target_id": "target_entity_id",
-            "type": "relationship_type",
-            "source_sentence": "the exact sentence from the text that supports this relationship"
-        }}
-    ]
-}}
+            logger.debug(
+                "KG extraction: text=%d chars, system_prompt=%d chars",
+                len(text),
+                len(self._EXTRACTION_SYSTEM_PROMPT),
+            )
 
-Entity types should be: Protein, Disease, or Entity.
-Relationship types should be: ASSOCIATED_WITH, CAUSES, TREATS, or RELATED_TO.
-For each relationship, "source_sentence" MUST be the verbatim sentence from the input text that supports the extracted triple.
-
-IMPORTANT: Do NOT extract generic terms as standalone entities. Examples of terms to IGNORE:
-- "Isoform", "Isoform 1", "Isoform 2", etc. (unless fully qualified like "Isoform 1 of Protein X")
-- "Fragment", "Subunit", "Domain", "Region"
-- "Protein", "Enzyme", "Molecule", "Compound"
-- "Disease", "Syndrome", "Disorder"
-- "Patient", "Subject", "Cohort", "Group"
-- "Study", "Analysis", "Data", "Result"
-
-Only extract specific, named entities (e.g., "BRCA1", "Alzheimer's Disease", "Interleukin-6").
-
-Text: {text}
-
-Return only valid JSON:"""
-
-            # DEBUG: Log the prompt being sent to LLM
-            logger.info("=" * 80)
-            logger.info("DEBUG: Sending prompt to LLM")
-            logger.info(f"Input text length: {len(text)} characters")
-            logger.info(f"Input text preview: {text[:300]}...")
-            logger.info(f"Prompt length: {len(prompt)} characters")
-            logger.debug(f"Full prompt:\n{prompt}")
-            logger.info("=" * 80)
-
-            # Call the LLM directly
-            logger.info("Invoking LLM...")
-            response = await self.llm.ainvoke(prompt)
-            logger.info("LLM invocation completed")
+            # Call LLM with system/user separation for prompt caching
+            response = await self.llm.ainvoke(
+                user_prompt,
+                system_prompt=self._EXTRACTION_SYSTEM_PROMPT,
+            )
 
             # Handle response being an object (CustomLLMWrapper) or string
             if hasattr(response, "content"):
@@ -408,21 +417,6 @@ Return only valid JSON:"""
                 response_text = response
             else:
                 response_text = str(response)
-
-            # DEBUG: Log the raw LLM response
-            logger.info("=" * 80)
-            logger.info("DEBUG: Received LLM response")
-            logger.info(f"Response type: {type(response)}")
-            logger.info(f"Response text length: {len(response_text)} characters")
-            logger.info(
-                f"Response text preview (first 500 chars):\n{response_text[:500]}"
-            )
-            if len(response_text) > 500:
-                logger.info(
-                    f"Response text preview (last 500 chars):\n{response_text[-500:]}"
-                )
-            logger.debug(f"Full response text:\n{response_text}")
-            logger.info("=" * 80)
 
             # Parse the JSON response
             try:
