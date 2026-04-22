@@ -121,8 +121,8 @@ def integrate_with_ingestion_pipeline():
     """
     Example of how to integrate with the ingestion pipeline.
     """
-    from pipeline.backends.neo4j_store import Neo4jGraphStore
-    db = Neo4jGraphStore(database="cvd1")
+    from pipeline.dx.registry import BackendRegistry
+    db = BackendRegistry.resolve_graph_store("neo4j", database="cvd1")
     consolidator = IncrementalConsolidator(db=db, chunk_threshold=25)
 
     # In your ingestion loop:

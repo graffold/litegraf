@@ -44,6 +44,7 @@ class PMCIngestor:
         chunk_overlap: int = 200,
         pipeline_batch_size: int = 50,
         skip_node_labeling: bool = False,
+        graph_store: GraphStore | None = None,
     ) -> None:
         self.service = service
         self.database = database
@@ -57,7 +58,9 @@ class PMCIngestor:
 
         use_opencypher = backend == "neptune"
         self.db: GraphStore | None = None
-        if backend == "neo4j":
+        if graph_store is not None:
+            self.db = graph_store
+        elif backend == "neo4j":
             from pipeline.backends.neo4j_store import Neo4jGraphStore
             self.db = Neo4jGraphStore(database=database)
 

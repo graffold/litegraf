@@ -34,10 +34,11 @@ def _build_backends(args: argparse.Namespace, config: dict[str, Any]) -> tuple:
     precedence over built-in defaults.
     """
     from pipeline.backends.local_embeddings import LocalEmbeddingProvider
-    from pipeline.backends.neo4j_store import Neo4jGraphStore
     from pipeline.backends.sqlite_job_store import SQLiteJobStore
+    from pipeline.dx.registry import BackendRegistry
 
-    graph_store = Neo4jGraphStore(
+    graph_store = BackendRegistry.resolve_graph_store(
+        args.graph_backend or config.get("graph_backend", "neo4j"),
         uri=args.graph_uri or config.get("graph_uri", "bolt://localhost:7687"),
         auth=(
             args.graph_user or config.get("graph_user", "neo4j"),
@@ -112,6 +113,7 @@ def main() -> None:
     run_parser.add_argument("--query", required=True)
     run_parser.add_argument("--max-results", type=int, default=10)
     run_parser.add_argument("--config", help="Path to YAML/TOML config file")
+    run_parser.add_argument("--graph-backend", default="neo4j", choices=["neo4j", "memgraph"])
     run_parser.add_argument("--graph-uri", help="Graph database URI")
     run_parser.add_argument("--graph-user", default="neo4j")
     run_parser.add_argument("--graph-password")
@@ -126,6 +128,7 @@ def main() -> None:
     enrich_parser = subparsers.add_parser("enrich", help="Run enrichment pipeline")
     enrich_parser.add_argument("--file", required=True)
     enrich_parser.add_argument("--config", help="Path to YAML/TOML config file")
+    enrich_parser.add_argument("--graph-backend", default="neo4j", choices=["neo4j", "memgraph"])
     enrich_parser.add_argument("--graph-uri")
     enrich_parser.add_argument("--graph-user", default="neo4j")
     enrich_parser.add_argument("--graph-password")

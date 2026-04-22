@@ -1471,9 +1471,10 @@ def main():
             property_mapping[canonical_prop.strip()] = dup_props
 
     try:
-        from pipeline.backends.neo4j_store import Neo4jGraphStore
+        from pipeline.dx.registry import BackendRegistry
 
-        graph_store = Neo4jGraphStore(
+        graph_store = BackendRegistry.resolve_graph_store(
+            "neo4j",
             uri="bolt://localhost:7687",
             auth=("neo4j", "password"),
             database=args.database,

@@ -20,6 +20,12 @@ def _lazy_neo4j() -> type[GraphStore]:
     return Neo4jGraphStore
 
 
+def _lazy_memgraph() -> type[GraphStore]:
+    from pipeline.backends.memgraph_store import MemgraphStore
+
+    return MemgraphStore
+
+
 def _lazy_local_embedding() -> type[EmbeddingProvider]:
     from pipeline.backends.local_embeddings import LocalEmbeddingProvider
 
@@ -57,7 +63,7 @@ def _lazy_cross_encoder() -> type[RerankerProvider]:
 
 
 # Mapping from shorthand → lazy loader returning the class
-_GRAPH_STORES: dict[str, Any] = {"neo4j": _lazy_neo4j}
+_GRAPH_STORES: dict[str, Any] = {"neo4j": _lazy_neo4j, "memgraph": _lazy_memgraph}
 _EMBEDDING_PROVIDERS: dict[str, Any] = {"local": _lazy_local_embedding}
 _LLM_PROVIDERS: dict[str, Any] = {"ollama": _lazy_ollama, "bedrock": _lazy_bedrock_llm, "cloudflare": _lazy_cloudflare_llm}
 _JOB_STORES: dict[str, Any] = {"sqlite": _lazy_sqlite}

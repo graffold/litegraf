@@ -58,6 +58,7 @@ class BioRxivIngestor:
         chunk_size: int = 2000,
         chunk_overlap: int = 200,
         skip_node_labeling: bool = False,
+        graph_store: GraphStore | None = None,
     ) -> None:
         self.service = service
         self.database = database
@@ -74,7 +75,9 @@ class BioRxivIngestor:
 
         # Database connection for deduplicator (needs execute_query)
         use_opencypher = backend == "neptune"
-        if backend == "neo4j":
+        if graph_store is not None:
+            self.db: GraphStore | None = graph_store
+        elif backend == "neo4j":
             from pipeline.backends.neo4j_store import Neo4jGraphStore
             self.db: GraphStore | None = Neo4jGraphStore(database=database)
         else:

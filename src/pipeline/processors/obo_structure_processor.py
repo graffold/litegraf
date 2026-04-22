@@ -342,8 +342,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    from pipeline.backends.neo4j_store import Neo4jGraphStore
-    processor = OBOStructureProcessor(database=args.database, graph_store=Neo4jGraphStore(database=args.database))
+    from pipeline.dx.registry import BackendRegistry
+    graph_store = BackendRegistry.resolve_graph_store("neo4j", database=args.database)
+    processor = OBOStructureProcessor(database=args.database, graph_store=graph_store)
     try:
         processor.ingest_ontology(args.file)
     finally:

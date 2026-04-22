@@ -421,8 +421,9 @@ def main() -> None:
     dry_run = not args.execute if args.execute else args.dry_run
 
     try:
-        from pipeline.backends.neo4j_store import Neo4jGraphStore
-        migrator = RelationshipMigration(database=args.database, dry_run=dry_run, graph_store=Neo4jGraphStore(database=args.database))
+        from pipeline.dx.registry import BackendRegistry
+        graph_store = BackendRegistry.resolve_graph_store("neo4j", database=args.database)
+        migrator = RelationshipMigration(database=args.database, dry_run=dry_run, graph_store=graph_store)
 
         print("🔍 Analyzing current RelationshipOccurrence structure...")
         analysis = migrator.analyze_current_structure()

@@ -38,6 +38,41 @@ class GraphStore(ABC):
     def close(self) -> None:
         """Release database connections."""
 
+    @property
+    def dialect(self) -> str:
+        """Return the graph database dialect: 'neo4j' or 'memgraph'."""
+        return "neo4j"
+
+    def create_vector_index(self, name: str, label: str, property: str, dimensions: int = 768) -> None:
+        """Create a vector index on nodes. Override for dialect-specific syntax."""
+        self.execute_query(
+            f"CREATE VECTOR INDEX {name} IF NOT EXISTS "
+            f"FOR (n:{label}) ON (n.{property}) "
+            f"OPTIONS {{indexConfig: {{`vector.dimensions`: {dimensions}, `vector.similarity_function`: 'cosine'}}}}"
+        )
+
+    def create_vector_index_for_relationship(self, name: str, rel_type: str, property: str, dimensions: int = 768) -> None:
+        """Create a vector index on relationships. Override for dialect-specific syntax."""
+        self.execute_query(
+            f"CREATE VECTOR INDEX {name} IF NOT EXISTS "
+            f"FOR ()-[r:{rel_type}]-() ON (r.{property}) "
+            f"OPTIONS {{indexConfig: {{`vector.dimensions`: {dimensions}, `vector.similarity_function`: 'cosine'}}}}"
+        )
+
+    def vector_search(self, index_name: str, vector: list[float], top_k: int = 10) -> list[dict]:
+        """Run a vector similarity search on nodes. Override for dialect-specific syntax."""
+        return self.execute_query(
+            "CALL db.index.vector.queryNodes($idx, $k, $vec) YIELD node, score RETURN node, score",
+            {"idx": index_name, "k": top_k, "vec": vector},
+        )
+
+    def vector_search_relationships(self, index_name: str, vector: list[float], top_k: int = 10) -> list[dict]:
+        """Run a vector similarity search on relationships. Override for dialect-specific syntax."""
+        return self.execute_query(
+            "CALL db.index.vector.queryRelationships($idx, $k, $vec) YIELD relationship, score RETURN relationship, score",
+            {"idx": index_name, "k": top_k, "vec": vector},
+        )
+
     def __enter__(self) -> "GraphStore":
         return self
 
@@ -63,15 +98,31 @@ class EmbeddingProvider(ABC):
 
 
 class LLMProvider(ABC):
-    """Abstract LLM backend for entity/relationship extraction."""
+    """Abstract LLM backend for entity/relationship extraction.
+
+    All methods accept an optional ``system_prompt`` keyword argument.
+    When provided, the implementation SHOULD send it as a separate system
+    message (enabling provider-level prompt caching for repeated calls
+    with the same system prefix).
+    """
 
     @abstractmethod
     def invoke(self, prompt: str, **kwargs: Any) -> str:
-        """Synchronous LLM call. Returns response text."""
+        """Synchronous LLM call. Returns response text.
+
+        Keyword Args:
+            system_prompt: Optional static system message sent separately
+                from the user prompt to enable prompt caching.
+        """
 
     @abstractmethod
     async def ainvoke(self, prompt: str, **kwargs: Any) -> str:
-        """Asynchronous LLM call. Returns response text."""
+        """Asynchronous LLM call. Returns response text.
+
+        Keyword Args:
+            system_prompt: Optional static system message sent separately
+                from the user prompt to enable prompt caching.
+        """
 
     @abstractmethod
     async def extract(self, prompt: str, text: str) -> dict[str, Any]:

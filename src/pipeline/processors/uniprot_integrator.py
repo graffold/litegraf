@@ -335,7 +335,7 @@ async def main():
     # Add project root to path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-    from pipeline.backends.neo4j_store import Neo4jGraphStore
+    from pipeline.dx.registry import BackendRegistry
 
     parser = argparse.ArgumentParser(
         description="Enrich protein nodes with UniProt functional annotations"
@@ -396,7 +396,7 @@ async def main():
 
     # Connect to database
     logger.info(f"Connecting to {args.backend} database: {args.database}")
-    db = Neo4jGraphStore(uri=args.uri, user=args.user, password=args.password, database=args.database)
+    db = BackendRegistry.resolve_graph_store(args.backend, uri=args.uri, user=args.user, password=args.password, database=args.database)
 
     # Create integrator
     integrator = UniProtIntegrator(

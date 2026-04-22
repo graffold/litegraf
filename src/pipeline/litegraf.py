@@ -474,22 +474,14 @@ class LiteGraf:
     def _ensure_entity_vector_index(self) -> None:
         """Create the entity_embeddings vector index if it doesn't exist."""
         try:
-            self._graph.execute_query(
-                "CREATE VECTOR INDEX entity_embeddings IF NOT EXISTS "
-                "FOR (n:Entity) ON (n.embedding) "
-                "OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}"
-            )
+            self._graph.create_vector_index("entity_embeddings", "Entity", "embedding")
         except Exception:
             logger.debug("Could not create entity_embeddings index (may already exist or DB unavailable)")
 
     def _ensure_relationship_vector_index(self) -> None:
         """Create the relationship_embeddings vector index if it doesn't exist."""
         try:
-            self._graph.execute_query(
-                "CREATE VECTOR INDEX relationship_embeddings IF NOT EXISTS "
-                "FOR ()-[r:RELATED_TO]-() ON (r.embedding) "
-                "OPTIONS {indexConfig: {`vector.dimensions`: 768, `vector.similarity_function`: 'cosine'}}"
-            )
+            self._graph.create_vector_index_for_relationship("relationship_embeddings", "RELATED_TO", "embedding")
         except Exception:
             logger.debug("Could not create relationship_embeddings index (may already exist or DB unavailable)")
 
@@ -763,22 +755,16 @@ class LiteGraf:
     ) -> list[ContextChunk]:
         """Search the chunk_embeddings vector index."""
         try:
-            results = self._graph.execute_query(
-                "CALL db.index.vector.queryNodes('chunk_embeddings', $top_k, $vec) "
-                "YIELD node, score "
-                "RETURN node.chunk_id AS chunk_id, node.text AS text, score "
-                "ORDER BY score DESC",
-                {"top_k": top_k, "vec": query_vec},
-            )
+            results = self._graph.vector_search("chunk_embeddings", query_vec, top_k=top_k)
             return [
                 ContextChunk(
-                    chunk_id=r.get("chunk_id", ""),
-                    text=r.get("text", ""),
+                    chunk_id=r["node"].get("chunk_id", "") if isinstance(r.get("node"), dict) else r.get("chunk_id", ""),
+                    text=r["node"].get("text", "") if isinstance(r.get("node"), dict) else r.get("text", ""),
                     score=r.get("score", 0.0),
                     metadata={},
                 )
                 for r in results
-                if r.get("text")
+                if (r["node"].get("text") if isinstance(r.get("node"), dict) else r.get("text"))
             ]
         except Exception:
             logger.debug("chunk_embeddings index not available")
@@ -789,23 +775,16 @@ class LiteGraf:
     ) -> list[ContextChunk]:
         """Search the entity_embeddings vector index."""
         try:
-            results = self._graph.execute_query(
-                "CALL db.index.vector.queryNodes('entity_embeddings', $top_k, $vec) "
-                "YIELD node, score "
-                "RETURN node.id AS entity_id, node.name AS name, "
-                "node.description AS description, score "
-                "ORDER BY score DESC",
-                {"top_k": top_k, "vec": query_vec},
-            )
+            results = self._graph.vector_search("entity_embeddings", query_vec, top_k=top_k)
             return [
                 ContextChunk(
-                    chunk_id=r.get("entity_id", ""),
-                    text=r.get("description", r.get("name", "")),
+                    chunk_id=(r["node"].get("id", "") if isinstance(r.get("node"), dict) else r.get("entity_id", "")),
+                    text=(r["node"].get("description", r["node"].get("name", "")) if isinstance(r.get("node"), dict) else r.get("description", r.get("name", ""))),
                     score=r.get("score", 0.0),
-                    metadata={"type": "entity", "name": r.get("name", "")},
+                    metadata={"type": "entity", "name": (r["node"].get("name", "") if isinstance(r.get("node"), dict) else r.get("name", ""))},
                 )
                 for r in results
-                if r.get("description") or r.get("name")
+                if (r["node"].get("description") or r["node"].get("name")) if isinstance(r.get("node"), dict) else (r.get("description") or r.get("name"))
             ]
         except Exception:
             logger.debug("entity_embeddings index not available")
@@ -816,23 +795,16 @@ class LiteGraf:
     ) -> list[ContextChunk]:
         """Search the relationship_embeddings vector index."""
         try:
-            results = self._graph.execute_query(
-                "CALL db.index.vector.queryRelationships('relationship_embeddings', $top_k, $vec) "
-                "YIELD relationship, score "
-                "RETURN relationship.description AS description, "
-                "relationship.chunk_id AS chunk_id, type(relationship) AS rel_type, score "
-                "ORDER BY score DESC",
-                {"top_k": top_k, "vec": query_vec},
-            )
+            results = self._graph.vector_search_relationships("relationship_embeddings", query_vec, top_k=top_k)
             return [
                 ContextChunk(
-                    chunk_id=r.get("chunk_id", ""),
-                    text=r.get("description", ""),
+                    chunk_id=(r["relationship"].get("chunk_id", "") if isinstance(r.get("relationship"), dict) else r.get("chunk_id", "")),
+                    text=(r["relationship"].get("description", "") if isinstance(r.get("relationship"), dict) else r.get("description", "")),
                     score=r.get("score", 0.0),
-                    metadata={"type": "relationship", "rel_type": r.get("rel_type", "")},
+                    metadata={"type": "relationship"},
                 )
                 for r in results
-                if r.get("description")
+                if (r["relationship"].get("description") if isinstance(r.get("relationship"), dict) else r.get("description"))
             ]
         except Exception:
             logger.debug("relationship_embeddings index not available")
