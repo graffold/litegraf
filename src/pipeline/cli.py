@@ -1,6 +1,6 @@
-"""CLI entrypoints for the biokg-ingest package.
+"""CLI entrypoints for litegraf.
 
-Provides ``biokg-ingest run`` and ``biokg-ingest enrich`` subcommands that
+Provides ``litegraf run`` and ``litegraf enrich`` subcommands that
 construct default backends from CLI arguments merged with an optional YAML
 config file, then execute the corresponding pipeline.
 """

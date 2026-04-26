@@ -17,9 +17,14 @@ build/
 
 .ralph-tui/
 .kiro/
+.agentastic/
 litegraf_workdir/
 .vscode/
 PDF/
 uv.lock
 src/pipeline/benchmarks/datasets/data/
 .mypy_cache/
+
+# Internal planning docs
+PRD*.md
+prd.json

@@ -16,8 +16,8 @@ jobs:
           version: "latest"
       - run: uv venv
       - run: uv pip install ruff
-      - run: uv run ruff check pipeline/
-      - run: uv run ruff format --check pipeline/
+      - run: uv run ruff check src/pipeline/
+      - run: uv run ruff format --check src/pipeline/
 
   test:
     runs-on: ubuntu-latest

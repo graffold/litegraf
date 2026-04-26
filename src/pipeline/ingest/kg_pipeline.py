@@ -85,8 +85,8 @@ Return a JSON object with this exact structure:
     ]
 }
 
-Entity types: Protein, Disease, or Entity.
-Relationship types: ASSOCIATED_WITH, CAUSES, TREATS, or RELATED_TO.
+Entity types: Protein, Disease, Gene, or Entity.
+Relationship types: ASSOCIATES_WITH, CAUSES, TREATS, or RELATED_TO.
 For each relationship, "source_sentence" MUST be the verbatim sentence from the input text.
 
 IMPORTANT: Do NOT extract generic terms as standalone entities. Terms to IGNORE:

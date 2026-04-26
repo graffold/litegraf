@@ -55,7 +55,7 @@ class LiteGraf:
     graph_store: str | GraphStore | type[GraphStore] = "neo4j"
     graph_uri: str = "bolt://localhost:7687"
     graph_user: str = "neo4j"
-    graph_password: str = "password"
+    graph_password: str = ""
     graph_database: str = "neo4j"
 
     # --- Embedding provider ---
@@ -784,7 +784,7 @@ class LiteGraf:
                     metadata={"type": "entity", "name": (r["node"].get("name", "") if isinstance(r.get("node"), dict) else r.get("name", ""))},
                 )
                 for r in results
-                if (r["node"].get("description") or r["node"].get("name")) if isinstance(r.get("node"), dict) else (r.get("description") or r.get("name"))
+                if ((r["node"].get("description") or r["node"].get("name")) if isinstance(r.get("node"), dict) else (r.get("description") or r.get("name")))
             ]
         except Exception:
             logger.debug("entity_embeddings index not available")
