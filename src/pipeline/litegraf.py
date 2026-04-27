@@ -85,6 +85,8 @@ class LiteGraf:
     # --- Extraction ---
     max_gleaning: int = 1
     enable_entity_merge: bool = True
+    enable_source_overlap: bool = True
+    source_overlap_weight: float = 0.3
 
     # --- Reranker ---
     reranker: str | RerankerProvider | type[RerankerProvider] | None = None
@@ -184,6 +186,7 @@ class LiteGraf:
         total_rels = 0
         all_doc_ids: list[str] = []
         skipped_sources = 0
+        _entities_by_doc: dict[str, set[str]] = {}
 
         for text in texts:
             if not text.strip():
@@ -208,6 +211,7 @@ class LiteGraf:
             total_chunks += len(chunks)
 
             # Extract + store per chunk
+            doc_entity_ids: list[str] = []
             for chunk_id, chunk_text in chunks:
                 extraction = await self._extract_chunk(chunk_text)
                 nodes = extraction.get("entities", [])
@@ -215,6 +219,15 @@ class LiteGraf:
                 total_entities += len(nodes)
                 total_rels += len(rels)
                 await self._store_extraction(chunk_id, chunk_text, nodes, rels)
+                for n in nodes:
+                    name = n.get("name", "")
+                    label = n.get("type", "Entity")
+                    if name:
+                        doc_entity_ids.append(f"{label}:{name}")
+
+            # Track entities per document for source overlap scoring
+            if doc_entity_ids:
+                _entities_by_doc[doc_id] = set(doc_entity_ids)
 
             # Flush any remaining buffered writes for this document
             if hasattr(self._graph, "flush"):
@@ -231,6 +244,11 @@ class LiteGraf:
                     "entities": total_entities,
                     "relationships": total_rels,
                 })
+
+        # Source overlap: create CO_MENTIONED_IN edges for entity pairs
+        # that co-occur across multiple documents
+        if self.enable_source_overlap and len(_entities_by_doc) >= 2:
+            self._create_source_overlap_edges(_entities_by_doc)
 
         duration = time.monotonic() - start
         result_id: str | list[str] = (
@@ -508,6 +526,34 @@ class LiteGraf:
             self._graph.create_vector_index_for_relationship("relationship_embeddings", "RELATED_TO", "embedding")
         except Exception:
             logger.debug("Could not create relationship_embeddings index (may already exist or DB unavailable)")
+
+    def _create_source_overlap_edges(self, entities_by_doc: dict[str, set[str]]) -> None:
+        """Create CO_MENTIONED_IN edges for entity pairs co-occurring in 2+ documents."""
+        from collections import Counter
+
+        pair_counts: Counter[tuple[str, str]] = Counter()
+        for doc_id, entity_ids in entities_by_doc.items():
+            sorted_ids = sorted(entity_ids)
+            for i, a in enumerate(sorted_ids):
+                for b in sorted_ids[i + 1:]:
+                    pair_counts[(a, b)] += 1
+
+        created = 0
+        for (a, b), count in pair_counts.items():
+            if count < 2:
+                continue
+            weight = round(min(count * self.source_overlap_weight, 1.0), 3)
+            try:
+                self._graph.upsert_relationship(
+                    a, b, "CO_MENTIONED_IN",
+                    {"weight": weight, "doc_count": count},
+                )
+                created += 1
+            except Exception:
+                logger.debug("Failed to create CO_MENTIONED_IN edge: %s → %s", a, b)
+
+        if created:
+            logger.info("Source overlap: created %d CO_MENTIONED_IN edges", created)
 
     def _chunk_text(self, text: str, doc_id: str) -> list[tuple[str, str]]:
         """Split text into chunks. Returns list of (chunk_id, chunk_text)."""
