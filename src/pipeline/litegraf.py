@@ -166,8 +166,13 @@ class LiteGraf:
 
     # --- Insert (async) -----------------------------------------------------
 
-    async def ainsert(self, content: str | list[str]) -> InsertResult:
-        """Insert text content into the knowledge graph (async)."""
+    async def ainsert(self, content: str | list[str], force: bool = False) -> InsertResult:
+        """Insert text content into the knowledge graph (async).
+
+        Args:
+            content: Text or list of texts to ingest.
+            force: If True, bypass source-level dedup (re-ingest even if unchanged).
+        """
         if not content or (isinstance(content, list) and not any(content)):
             raise ValueError("Content must be a non-empty string or list of strings")
 
@@ -178,10 +183,19 @@ class LiteGraf:
         total_entities = 0
         total_rels = 0
         all_doc_ids: list[str] = []
+        skipped_sources = 0
 
         for text in texts:
             if not text.strip():
                 continue
+
+            # Source-level dedup: skip entire file if content unchanged
+            if self.enable_dedup and not force:
+                source_hash = self._dedup.compute_source_hash(text)
+                if self._dedup.is_source_duplicate(source_hash):
+                    logger.debug("Source-level dedup: skipping unchanged content (%s)", source_hash[:20])
+                    skipped_sources += 1
+                    continue
 
             doc_id = self._dedup.compute_content_id(text)
             all_doc_ids.append(doc_id)
@@ -207,6 +221,16 @@ class LiteGraf:
                 self._graph.flush()
 
             self._dedup.mark_seen(doc_id)
+
+            # Mark source as ingested
+            if self.enable_dedup:
+                source_hash = self._dedup.compute_source_hash(text)
+                self._dedup.mark_source_seen(source_hash, {
+                    "doc_id": doc_id,
+                    "chunks": len(chunks),
+                    "entities": total_entities,
+                    "relationships": total_rels,
+                })
 
         duration = time.monotonic() - start
         result_id: str | list[str] = (
@@ -422,9 +446,9 @@ class LiteGraf:
         )
     # --- Sync wrappers ------------------------------------------------------
 
-    def insert(self, content: str | list[str]) -> InsertResult:
+    def insert(self, content: str | list[str], force: bool = False) -> InsertResult:
         """Insert text content into the knowledge graph (sync wrapper)."""
-        return run_sync(self.ainsert(content))
+        return run_sync(self.ainsert(content, force=force))
 
     def delete(self, doc_id: str) -> DeleteResult:
         """Delete a document and clean up its KG data (sync wrapper)."""

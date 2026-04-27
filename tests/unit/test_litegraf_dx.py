@@ -169,6 +169,41 @@ class TestContentDeduplicator:
         dedup.clear()
         assert not dedup.is_duplicate(cid)
 
+    # -- source-level dedup --------------------------------------------------
+
+    def test_source_hash_deterministic(self):
+        """Same content always produces the same source hash."""
+        h1 = ContentDeduplicator.compute_source_hash("hello world")
+        h2 = ContentDeduplicator.compute_source_hash("hello world")
+        assert h1 == h2
+        assert h1.startswith("src-")
+
+    def test_source_hash_uses_sha256(self):
+        """Source hash uses SHA256, not MD5."""
+        h = ContentDeduplicator.compute_source_hash("test")
+        # SHA256 hex = 64 chars, MD5 = 32 chars
+        assert len(h.removeprefix("src-")) == 64
+
+    def test_source_dedup_lifecycle(self, tmp_path):
+        """mark_source_seen → is_source_duplicate → remove_source."""
+        dedup = ContentDeduplicator(working_dir=str(tmp_path / "wd"))
+        sh = dedup.compute_source_hash("my document")
+        assert not dedup.is_source_duplicate(sh)
+        dedup.mark_source_seen(sh, {"doc_id": "doc-123"})
+        assert dedup.is_source_duplicate(sh)
+        assert dedup.get_source_metadata(sh)["doc_id"] == "doc-123"
+        dedup.remove_source(sh)
+        assert not dedup.is_source_duplicate(sh)
+
+    def test_source_dedup_persists(self, tmp_path):
+        """Source dedup index survives a new instance."""
+        wd = str(tmp_path / "wd")
+        d1 = ContentDeduplicator(working_dir=wd)
+        sh = d1.compute_source_hash("persist this")
+        d1.mark_source_seen(sh)
+        d2 = ContentDeduplicator(working_dir=wd)
+        assert d2.is_source_duplicate(sh)
+
 
 # ===========================================================================
 # 9.2  LLMCache and CachedLLMProvider
