@@ -484,6 +484,16 @@ class LiteGraf:
         """Insert pre-extracted entities and relationships directly (sync wrapper)."""
         return run_sync(self.ainsert_kg(entities=entities, relationships=relationships))
 
+    def detect_gaps(self, min_community_size: int = 3, cohesion_threshold: float = 0.15) -> "GapReport":
+        """Analyze graph structure for knowledge gaps.
+
+        Returns a GapReport with isolated entities, sparse communities,
+        bridge nodes, and type imbalances.
+        """
+        from pipeline.processors.gap_detector import GapDetector, GapReport  # noqa: F811
+        detector = GapDetector(self._graph)
+        return detector.detect(min_community_size=min_community_size, cohesion_threshold=cohesion_threshold)
+
     def query(
         self,
         question: str,
