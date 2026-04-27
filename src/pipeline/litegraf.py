@@ -87,6 +87,7 @@ class LiteGraf:
     enable_entity_merge: bool = True
     enable_source_overlap: bool = True
     source_overlap_weight: float = 0.3
+    enable_two_step_ingest: bool = True
 
     # --- Reranker ---
     reranker: str | RerankerProvider | type[RerankerProvider] | None = None
@@ -180,6 +181,9 @@ class LiteGraf:
 
         start = time.monotonic()
         texts = [content] if isinstance(content, str) else content
+
+        # Clear graph context cache so analysis sees fresh state
+        self._graph_context_cache = None  # type: ignore[attr-defined]
 
         total_chunks = 0
         total_entities = 0
@@ -573,20 +577,80 @@ class LiteGraf:
             idx += 1
         return chunks
 
+    def _get_graph_context(self) -> str:
+        """Fetch existing graph schema context for analysis prompts (cached per batch)."""
+        if not hasattr(self, "_graph_context_cache"):
+            try:
+                labels = self._graph.execute_query(
+                    "MATCH (n) RETURN DISTINCT labels(n)[0] AS label, count(n) AS cnt "
+                    "ORDER BY cnt DESC LIMIT 20"
+                )
+                top_entities = self._graph.execute_query(
+                    "MATCH (n) WHERE n.name IS NOT NULL "
+                    "RETURN n.name AS name, labels(n)[0] AS type "
+                    "ORDER BY size((n)--()) DESC LIMIT 30"
+                )
+                label_str = ", ".join(f"{r['label']}({r['cnt']})" for r in labels) if labels else "empty graph"
+                entity_str = ", ".join(f"{r['name']} ({r['type']})" for r in top_entities) if top_entities else "none"
+                self._graph_context_cache = f"Existing labels: {label_str}\nTop entities: {entity_str}"
+            except Exception:
+                self._graph_context_cache = "Graph context unavailable"
+        return self._graph_context_cache
+
+    async def _analyze_chunk(self, chunk_text: str) -> str:
+        """Step 1: Analyze chunk to identify entities, relationships, and merge candidates."""
+        graph_ctx = self._get_graph_context()
+        prompt = (
+            "Analyze the following text for knowledge graph extraction. Identify:\n"
+            "1. KEY ENTITIES: List each entity with its type and a brief reason why it matters\n"
+            "2. RELATIONSHIPS: List pairs of entities and how they relate, with evidence quotes\n"
+            "3. MERGE CANDIDATES: Any entities that are synonyms or aliases of entities already in the graph\n\n"
+            f"Current graph state:\n{graph_ctx}\n\n"
+            f"Text to analyze:\n{chunk_text}\n\n"
+            "Provide a structured analysis (not JSON — this is a reasoning step)."
+        )
+        try:
+            response = await self._llm.ainvoke(prompt)
+            return response if isinstance(response, str) else getattr(response, "content", str(response))
+        except Exception as e:
+            logger.warning("Analysis step failed: %s — falling back to direct extraction", e)
+            return ""
+
+    async def _extract_from_analysis(self, chunk_text: str, analysis: str) -> dict[str, Any]:
+        """Step 2: Extract structured JSON triples guided by the analysis."""
+        context = f"Analysis of the text:\n{analysis}\n\n" if analysis else ""
+        prompt = (
+            f"{context}"
+            "Based on the above analysis, extract all entities and relationships from the text below. "
+            "Return valid JSON with 'entities' (list of {name, type, description}) and "
+            "'relationships' (list of {source, target, type, description}). "
+            "Use the analysis to ensure completeness — don't miss entities identified in the analysis. "
+            "For merge candidates, use the canonical name from the existing graph."
+        )
+        return await self._llm.extract(prompt, chunk_text)
+
     async def _extract_chunk(self, chunk_text: str) -> dict[str, Any]:
         """Extract entities and relationships from a chunk via LLM.
+
+        When enable_two_step_ingest is True, runs an analysis pass first
+        that identifies entities, relationships, and merge candidates,
+        then feeds that analysis into the extraction pass for higher quality.
 
         When max_gleaning > 1, performs additional passes asking the LLM
         for missed entities/relationships and merges results.
         """
-        prompt = (
-            "Extract all entities (people, organizations, concepts, proteins, diseases, etc.) "
-            "and relationships from the following text. "
-            "Return valid JSON with 'entities' (list of {name, type, description}) and "
-            "'relationships' (list of {source, target, type, description}). "
-            "Each 'description' should be a concise summary of the entity or relationship."
-        )
-        result = await self._llm.extract(prompt, chunk_text)
+        if self.enable_two_step_ingest:
+            analysis = await self._analyze_chunk(chunk_text)
+            result = await self._extract_from_analysis(chunk_text, analysis)
+        else:
+            prompt = (
+                "Extract all entities (people, organizations, concepts, proteins, diseases, etc.) "
+                "and relationships from the following text. "
+                "Return valid JSON with 'entities' (list of {name, type, description}) and "
+                "'relationships' (list of {source, target, type, description}). "
+                "Each 'description' should be a concise summary of the entity or relationship."
+            )
+            result = await self._llm.extract(prompt, chunk_text)
 
         if self.max_gleaning <= 1:
             return result
