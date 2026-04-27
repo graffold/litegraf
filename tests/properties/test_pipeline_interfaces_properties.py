@@ -428,7 +428,8 @@ def _make_missing_backend_cases() -> list[tuple[str, int, str]]:
     cases.append(("EnrichmentOrchestrator", 1, "LLMProvider"))
 
     # IngestionJobManager(job_store, logger) — only job_store is a backend
-    cases.append(("IngestionJobManager", 0, "JobStore"))
+    # IngestionJobManager is in graffold-api, not litegraf — skip
+    # cases.append(("IngestionJobManager", 0, "JobStore"))
 
     return cases
 
@@ -476,10 +477,7 @@ def _construct_with_invalid_backend(label: str, param_index: int) -> None:
         EnrichmentOrchestrator(*args, database="test")
 
     elif label == "IngestionJobManager":
-        # param_index 0 = job_store
-        from src.services.ingestion.ingestion_job_manager import IngestionJobManager
-
-        IngestionJobManager(invalid, _logging.getLogger("test"))
+        pytest.skip("IngestionJobManager is in graffold-api, not litegraf")
 
 
 @given(case=st.sampled_from(_MISSING_BACKEND_CASES))
