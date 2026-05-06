@@ -8,7 +8,7 @@ Tests verify that:
 4. Consistency is maintained after updates
 """
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -63,16 +63,12 @@ def _make_pipeline(mock_graph_store=None, mock_embedder=None, mock_llm=None):
     gs = mock_graph_store or _MockGraphStore()
     ep = mock_embedder or _MockEmbeddingProvider()
     lp = mock_llm or _MockLLMProvider()
-    with patch(
-        "src.utils.neo4j_index_manager.setup_graphrag_indexes",
-        return_value=True,
-    ):
-        return EmbeddingPipeline(
-            gs,
-            ep,
-            lp,
-            database="test",
-        )
+    return EmbeddingPipeline(
+        gs,
+        ep,
+        lp,
+        database="test",
+    )
 
 
 @pytest.fixture
@@ -387,7 +383,9 @@ class TestEmbeddingPipelineTypeValidation:
     def test_rejects_non_graph_store(self):
         """Constructor raises TypeError for non-GraphStore."""
         with pytest.raises(TypeError, match="GraphStore"):
-            EmbeddingPipeline("not-a-graph-store", _MockEmbeddingProvider(), _MockLLMProvider())
+            EmbeddingPipeline(
+                "not-a-graph-store", _MockEmbeddingProvider(), _MockLLMProvider()
+            )
 
     def test_rejects_non_embedding_provider(self):
         """Constructor raises TypeError for non-EmbeddingProvider."""
@@ -401,16 +399,12 @@ class TestEmbeddingPipelineTypeValidation:
 
     def test_accepts_valid_backends(self):
         """Constructor accepts valid backend instances."""
-        with patch(
-            "src.utils.neo4j_index_manager.setup_graphrag_indexes",
-            return_value=True,
-        ):
-            pipeline = EmbeddingPipeline(
-                _MockGraphStore(),
-                _MockEmbeddingProvider(),
-                _MockLLMProvider(),
-                database="test",
-            )
-            assert isinstance(pipeline.db, GraphStore)
-            assert isinstance(pipeline.embedder, EmbeddingProvider)
-            assert isinstance(pipeline.llm, LLMProvider)
+        pipeline = EmbeddingPipeline(
+            _MockGraphStore(),
+            _MockEmbeddingProvider(),
+            _MockLLMProvider(),
+            database="test",
+        )
+        assert isinstance(pipeline.db, GraphStore)
+        assert isinstance(pipeline.embedder, EmbeddingProvider)
+        assert isinstance(pipeline.llm, LLMProvider)

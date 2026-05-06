@@ -624,9 +624,11 @@ FORBIDDEN_NAMES = ["Neo4jDatabase", "get_llm", "get_embedder", "RedisCache"]
 
 
 def _collect_pipeline_py_files() -> list[str]:
-    """Walk the pipeline/ directory and return all .py file paths."""
+    """Walk the src/pipeline/ directory and return all .py file paths."""
     py_files: list[str] = []
-    pipeline_root = _os.path.join(_os.path.dirname(__file__), "..", "..", "pipeline")
+    pipeline_root = _os.path.join(
+        _os.path.dirname(__file__), "..", "..", "src", "pipeline"
+    )
     pipeline_root = _os.path.normpath(pipeline_root)
     for dirpath, _dirnames, filenames in _os.walk(pipeline_root):
         # Skip __pycache__ directories

@@ -84,7 +84,7 @@ class TestAutoCreation:
     @pytest.mark.asyncio
     async def test_default_db_path(self) -> None:
         store = SQLiteJobStore()
-        expected = os.path.join(Path.home(), ".biokg-ingest", "jobs.db")
+        expected = os.path.join(Path.home(), ".litegraf", "jobs.db")
         assert store._db_path == expected
 
 

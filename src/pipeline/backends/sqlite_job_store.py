@@ -33,7 +33,7 @@ class SQLiteJobStore(JobStore):
     ----------
     db_path:
         Path to the SQLite database file.  Defaults to
-        ``~/.biokg-ingest/jobs.db``.  The parent directory is created
+        ``~/.litegraf/jobs.db``.  The parent directory is created
         automatically if it does not exist.
     """
 
