@@ -52,11 +52,11 @@ class LiteGraf:
     """
 
     # --- Graph store ---
-    graph_store: str | GraphStore | type[GraphStore] = "neo4j"
+    graph_store: str | GraphStore | type[GraphStore] = "memgraph"
     graph_uri: str = "bolt://localhost:7687"
-    graph_user: str = "neo4j"
+    graph_user: str = ""
     graph_password: str = ""
-    graph_database: str = "neo4j"
+    graph_database: str = ""
 
     # --- Embedding provider ---
     embedding: str | EmbeddingProvider | type[EmbeddingProvider] = "local"

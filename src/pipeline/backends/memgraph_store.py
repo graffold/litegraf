@@ -21,7 +21,7 @@ from pipeline.interfaces import GraphStore
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_DATABASE = "neo4j"
+_DEFAULT_DATABASE = ""
 _BATCH_SIZE = 500
 
 

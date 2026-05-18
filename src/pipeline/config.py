@@ -13,11 +13,17 @@ class PipelineConfig:
     ENTREZ_EMAIL = os.environ.get("ENTREZ_EMAIL", "")
     ENTREZ_API_KEY = os.environ.get("ENTREZ_API_KEY", "")
 
-    # Neo4j
-    NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
-    NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
-    NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "password")
-    NEO4J_DATABASE = os.environ.get("NEO4J_DATABASE", "neo4j")
+    # Graph database (Memgraph default, Neo4j compatible)
+    GRAPH_URI = os.environ.get("GRAPH_URI", os.environ.get("NEO4J_URI", "bolt://localhost:7687"))
+    GRAPH_USER = os.environ.get("GRAPH_USER", os.environ.get("NEO4J_USER", ""))
+    GRAPH_PASSWORD = os.environ.get("GRAPH_PASSWORD", os.environ.get("NEO4J_PASSWORD", ""))
+    GRAPH_DATABASE = os.environ.get("GRAPH_DATABASE", os.environ.get("NEO4J_DATABASE", ""))
+
+    # Backwards compat aliases
+    NEO4J_URI = GRAPH_URI
+    NEO4J_USER = GRAPH_USER
+    NEO4J_PASSWORD = GRAPH_PASSWORD
+    NEO4J_DATABASE = GRAPH_DATABASE
 
     # Tokenizers
     TOKENIZERS_PARALLELISM = os.environ.get("TOKENIZERS_PARALLELISM", "false")

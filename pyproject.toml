@@ -22,9 +22,10 @@ dependencies = [
 
 [project.optional-dependencies]
 neo4j = ["neo4j>=5.0.0"]
+graph = ["neo4j>=5.0.0"]  # bolt driver — works with both Memgraph and Neo4j
 bedrock = ["boto3>=1.38.0", "langchain-aws>=0.2.0"]
 redis = ["redis>=5.0.0", "hiredis>=2.3.0"]
-all = ["litegraf[neo4j,bedrock,redis]"]
+all = ["litegraf[graph,bedrock,redis]"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=1.0",
